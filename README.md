@@ -1,1 +1,3 @@
-# shantybot3
+# ShantyBot
+
+[https://twitter.com/shantybot] (@shantybot)
