@@ -1,3 +1,5 @@
 .stack-work/
 shantybot3.cabal
 *~
+data/
+config/token-config.yaml
