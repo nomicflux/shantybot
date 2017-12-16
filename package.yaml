@@ -25,8 +25,23 @@ dependencies:
 library:
   source-dirs: src
   dependencies:
+  - base
   - text
   - aeson
+  - bytestring
+  - cryptohash
+  - time
+  - http-types
+  - byteable
+  - string-random
+  - case-insensitive
+  - http-client
+  - pipes
+  - pipes-http
+  - pipes-bytestring
+  - pipes-aeson
+  - base64-bytestring
+  - transformers
 
 executables:
   ShantyBot-exe:
@@ -49,3 +64,6 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - ShantyBot
+    - hspec
+    - QuickCheck
+    - bytestring

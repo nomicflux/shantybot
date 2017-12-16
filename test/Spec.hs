@@ -1,2 +1,10 @@
+{-# LANGUAGE OverloadedStrings #-}
+
+import Test.Hspec
+import Test.QuickCheck
+
+import OAuthSpec
+
 main :: IO ()
-main = putStrLn "Test suite not yet implemented"
+main = hspec $ do
+  oauthTests

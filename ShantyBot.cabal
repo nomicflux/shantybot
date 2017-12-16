@@ -29,11 +29,31 @@ library
       src
   build-depends:
       base >= 4.7 && < 5
+    , base
     , text
     , aeson
+    , bytestring
+    , cryptohash
+    , time
+    , http-types
+    , byteable
+    , string-random
+    , case-insensitive
+    , http-client
+    , pipes
+    , pipes-http
+    , pipes-bytestring
+    , pipes-aeson
+    , base64-bytestring
+    , transformers
   exposed-modules:
       Lib
-      Tweet
+      Twitter.Internal.AccessInfo
+      Twitter.OAuth
+      Twitter.Streaming
+      Twitter.Tweet
+      Twitter.Types
+      TwitterAPI
   default-language: Haskell2010
 
 executable ShantyBot-exe
@@ -55,4 +75,9 @@ test-suite ShantyBot-test
   build-depends:
       base >= 4.7 && < 5
     , ShantyBot
+    , hspec
+    , QuickCheck
+    , bytestring
+  other-modules:
+      OAuthSpec
   default-language: Haskell2010
