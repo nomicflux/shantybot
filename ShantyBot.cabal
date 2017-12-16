@@ -46,6 +46,7 @@ library
     , pipes-aeson
     , base64-bytestring
     , transformers
+    , yaml
   exposed-modules:
       Lib
       Twitter.Internal.AccessInfo

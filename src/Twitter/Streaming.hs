@@ -12,6 +12,7 @@ import Data.ByteString.Lazy (fromStrict)
 import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as BSC
 import Data.Maybe (fromMaybe)
+import qualified Data.Yaml as Yaml
 import Twitter.Types
 import Twitter.Tweet
 import Twitter.OAuth (makeFullRequest)
@@ -28,24 +29,27 @@ lookAtTweets = mapM_ (putStrLn . show)
 
 request :: IO ()
 request = do
+  ecfg <- Yaml.decodeFileEither "config/config.yaml"
+  cfg <- case ecfg of
+    Left err -> fail (Yaml.prettyPrintParseException err)
+    Right val -> return $ val
   url <- parseUrlThrow twitterURL
-  ck <- consumerKey
-  at <- accessToken
-  cs <- consumerSecret
-  as <- accessSecret
   let
+    ck = consumerKey cfg
+    at = accessToken cfg
+    cs = consumerSecret cfg
+    as = accessSecret cfg
     --met = POST
     --req = Request met (URL (pack twitterURL)) [("status", "Ahoy, world!"), ("include_entities", "true")]
     met = GET
     req = Request met (URL (pack twitterURL)) []
-    token = Token ck (Just at)
+    token = Token ck at
     secret = Secret { secretConsumer = cs
-                    , secretToken = Just as
+                    , secretToken = as
                     }
   (paramString, headerString) <- makeFullRequest token req secret
-  let headers = [(hAuthorization, headerString)]
-  BSC.putStrLn headerString
   let
+    headers = [(hAuthorization, headerString)]
     postReq = url { method = pack $ show met
                   --, requestBody = RequestBodyLBS . fromStrict $ paramString
                   , queryString = paramString

@@ -42,6 +42,7 @@ library:
   - pipes-aeson
   - base64-bytestring
   - transformers
+  - yaml
 
 executables:
   ShantyBot-exe:

@@ -1,23 +1,39 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Twitter.Internal.AccessInfo where
 
+import Data.Yaml ((.:), FromJSON, parseJSON, withObject)
+import qualified Data.Yaml as Yaml
 import Data.ByteString (ByteString)
+import Data.Text (Text)
 
-consumerKey :: IO ByteString
-consumerKey = return "zLc0WewcETlhKE9Eq5LweGZtb"
+import Twitter.Types
 
-consumerSecret :: IO ByteString
-consumerSecret = return "IKLJLogU0R4zHwVR50d79wL5oEGvWRyytSJgvW0Z1BV8rSAJGh"
+data Config = Config { configToken :: Token
+                     , configSecret :: Secret
+                     , configOwner :: Owner
+                     }
+  deriving (Eq, Show)
 
-owner :: IO ByteString
-owner = return "shantybot"
+instance FromJSON Config where
+  parseJSON = withObject "ConfigObject" $ \o -> do
+    configToken <- parseJSON (Yaml.Object o)
+    configSecret <- parseJSON (Yaml.Object o)
+    configOwner <- parseJSON (Yaml.Object o)
+    return $ Config{..}
 
-ownerId :: IO Integer
-ownerId = return 896489823476822016
+consumerKey :: Config -> ByteString
+consumerKey = tokenConsumer . configToken
 
-accessToken :: IO ByteString
-accessToken = return "896489823476822016-bpd5FmuR1igEeYqWfMVSGkctIBDPSRs"
+consumerSecret :: Config -> ByteString
+consumerSecret = secretConsumer . configSecret
 
-accessSecret :: IO ByteString
-accessSecret = return "0JmzpmoXZ3YfpnITds7KiucoXaYScV2UmyI4F9qhRI8fx"
+owner :: Config -> Owner
+owner = configOwner
+
+accessToken :: Config -> Maybe ByteString
+accessToken = tokenAccess . configToken
+
+accessSecret :: Config -> Maybe ByteString
+accessSecret = secretToken . configSecret
