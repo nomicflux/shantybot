@@ -1,7 +1,7 @@
 name:                ShantyBot
 version:             0.1.0.0
 github:              nomicflux/shantybot
-license:             BSD3
+license:             MIT
 author:              Michael Anderson
 maintainer:          nomicflux@gmail.com
 copyright:           2017 Michael Anderson
