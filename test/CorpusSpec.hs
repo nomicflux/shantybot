@@ -14,9 +14,9 @@ import TextMining.Document
 corpusTests :: Spec
 corpusTests = do
   let testPhrase1 = "hello world" :: Text
-      testPhrase2 = "the sky is the blue today, is it is it not?" :: Text
-      testWords1 = T.splitOn " " $ cleanText testPhrase1
-      testWords2 = T.splitOn " " $ cleanText testPhrase2
+      testPhrase2 = "the sky is the blue today,  is it is it not? " :: Text
+      testWords1 = cleanText testPhrase1
+      testWords2 = cleanText testPhrase2
       docName1 = "test1" :: Text
       docName2 = "test2" :: Text
       doc1 = Document docName1 testWords1
@@ -66,6 +66,6 @@ corpusTests = do
     let
       map1a = FreqMap $ M.fromList [("hello", 1), ("world", 1)]
       map1b = FreqMap $ M.fromList [("the", 1), ("sky", 1), ("is", 3), ("the", 2), ("blue", 1), ("today", 1), ("it", 2), ("not", 1)]
-      corpus = Corpus $ M.fromList [(docName1, map1a), (docName2, map1b)]
+      corpus = Corpus 1 1 $ M.fromList [(docName1, map1a), (docName2, map1b)]
     it "should generate a corpus from documents" $ do
       genCorpus 1 1 [doc1, doc2] `shouldBe` corpus

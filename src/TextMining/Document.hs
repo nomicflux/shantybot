@@ -1,8 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StrictData #-}
 module TextMining.Document where
 
 import Control.Monad (msum)
-import Data.List (tails, length, foldl')
+import Data.List (tails, length, foldl', sortOn)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import Data.Maybe (mapMaybe, fromMaybe)
@@ -36,11 +37,11 @@ data TfIdf = TfIdf { tfidfMinGrams :: Int
 punctuation :: String
 punctuation = ",.?!-:;\"\'"
 
-cleanText :: Text -> Text
-cleanText = T.toLower . T.filter (not . (`elem` punctuation))
+cleanText :: Text -> [Text]
+cleanText = filter (/= "") . (T.strip <$>) . T.words . T.toLower . T.filter (not . (`elem` punctuation))
 
 mkDocument :: Text -> Text -> Document
-mkDocument name text = Document name $ T.words $ cleanText text
+mkDocument name text = Document name $ cleanText text
 
 comboText :: Text
 comboText = " "
@@ -92,7 +93,7 @@ getIdf (Corpus _ _ freqMaps) = M.mapWithKey transform freqMaps
     getIdfWord :: Text -> Int -> Double
     getIdfWord word _ =
       let bottom = getTotal word
-      in log $ numTexts / (fromIntegral $ 1 + bottom)
+      in numTexts / (fromIntegral $ 1 + bottom)
     transform :: Text -> FreqMap -> TfMap
     transform docName f@(FreqMap freqs) =
       TfMap $ M.mapWithKey getIdfWord freqs
@@ -118,14 +119,21 @@ cosineSimilarity :: TfMap -> TfMap -> Double
 cosineSimilarity (TfMap m1) (TfMap m2) =
   sum . fmap snd . M.toList . M.intersectionWith (*) m1 $ m2
 
+getSimilarities :: TfMap -> TfIdf -> Map Text Double
+getSimilarities phrase tfidf = M.map (cosineSimilarity phrase) (tfidfFreqs tfidf)
+
 bestMatch :: TfMap -> TfIdf -> Maybe Text
-bestMatch phrase tfidf = fst <$> getMatch (M.toList matches)
+bestMatch phrase tfidf = fst $ getMatch (M.toList matches)
   where
-    matches = M.map (cosineSimilarity phrase) (tfidfFreqs tfidf)
-    getMatch [] = Nothing
-    getMatch ((doc, rating) : rst) =
-      Just $ foldl (\acc@(_, accV) nxt@(_, v) ->
-                      if v > accV then nxt else acc) (doc, rating) rst
+    matches = getSimilarities phrase tfidf
+    getMatch :: [(Text, Double)] -> (Maybe Text, Double)
+    getMatch =
+      foldl (\acc@(_, accV) (k, v) ->
+                if v > accV then (Just k, v) else acc) (Nothing, 0.0)
+
+phraseVals :: Text -> TfIdf -> [(Text, Double)]
+phraseVals phrase t@(TfIdf m n _) =
+  sortOn (negate . snd) $ M.toList $ getSimilarities (getTfFromDoc m n $ mkDocument "" phrase) t
 
 matchPhrase :: Text -> TfIdf -> Maybe Text
 matchPhrase phrase t@(TfIdf m n _) =

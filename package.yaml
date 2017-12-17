@@ -44,6 +44,7 @@ library:
   - transformers
   - yaml
   - containers
+  - directory
 
 executables:
   ShantyBot-exe:
