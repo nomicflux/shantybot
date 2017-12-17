@@ -47,8 +47,10 @@ library
     , base64-bytestring
     , transformers
     , yaml
+    , containers
   exposed-modules:
       Lib
+      TextMining.Document
       Twitter.Internal.AccessInfo
       Twitter.OAuth
       Twitter.Streaming
@@ -79,6 +81,9 @@ test-suite ShantyBot-test
     , hspec
     , QuickCheck
     , bytestring
+    , text
+    , containers
   other-modules:
+      CorpusSpec
       OAuthSpec
   default-language: Haskell2010

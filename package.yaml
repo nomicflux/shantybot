@@ -43,6 +43,7 @@ library:
   - base64-bytestring
   - transformers
   - yaml
+  - containers
 
 executables:
   ShantyBot-exe:
@@ -68,3 +69,5 @@ tests:
     - hspec
     - QuickCheck
     - bytestring
+    - text
+    - containers
