@@ -1,6 +1,6 @@
 module Main where
 
-import Lib
+import ShantyApp
 
 main :: IO ()
-main = someFunc
+main = runService

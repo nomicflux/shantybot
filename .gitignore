@@ -2,4 +2,6 @@
 shantybot3.cabal
 *~
 data/songs/
+data/lastId
+logs/
 config/token-config.yaml

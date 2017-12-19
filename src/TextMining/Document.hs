@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StrictData #-}
+
 module TextMining.Document where
 
 import Control.Monad (msum)
@@ -78,25 +79,30 @@ addToCorpus (Corpus m n docs) name text = Corpus m n newDocs
 getTf :: FreqMap -> TfMap
 getTf (FreqMap freqs) = TfMap $ normalize freqs
   where
-    total = fromIntegral $ M.foldl (+) 0 freqs
+    total = fromIntegral $ M.foldl' (+) 0 freqs
     normalize = M.map ((/ total) . fromIntegral)
 
-getIdf :: Corpus -> Map Text TfMap
-getIdf (Corpus _ _ freqMaps) = M.mapWithKey transform freqMaps
+getIdfForDoc :: Map Text (Map Text a) -> FreqMap -> TfMap
+getIdfForDoc freqMaps (FreqMap freqs) = TfMap $ M.mapWithKey getIdfWord freqs
   where
     numTexts :: Double
     numTexts = fromIntegral $ length $ M.keys freqMaps
+
     allKeys :: [Text]
-    allKeys = foldl (\acc (FreqMap m) -> acc ++ M.keys m) [] freqMaps
+    allKeys = foldl (\acc m -> acc ++ M.keys m) [] freqMaps
+
     getTotal :: Text -> Int
-    getTotal word = foldl (\acc (FreqMap m) -> acc + (maybe 0 (const 1) (M.lookup word m))) 0 freqMaps
+    getTotal word = foldl (\acc m -> acc + (maybe 0 (const 1) (M.lookup word m))) 0 freqMaps
+
     getIdfWord :: Text -> Int -> Double
     getIdfWord word _ =
       let bottom = getTotal word
       in numTexts / (fromIntegral $ 1 + bottom)
-    transform :: Text -> FreqMap -> TfMap
-    transform docName f@(FreqMap freqs) =
-      TfMap $ M.mapWithKey getIdfWord freqs
+
+getIdf :: Corpus -> Map Text TfMap
+getIdf (Corpus _ _ docs) = M.map (getIdfForDoc freqMaps) docs
+  where
+    freqMaps = M.map (\(FreqMap m) -> m) docs
 
 genTfIdf :: Corpus -> TfIdf
 genTfIdf corpus@(Corpus m n freqMaps) =
@@ -112,12 +118,27 @@ genTfIdf corpus@(Corpus m n freqMaps) =
 genTfIdfFromDocs :: Int -> Int -> [Document] -> TfIdf
 genTfIdfFromDocs m n d = genTfIdf $ genCorpus m n d
 
-getTfFromDoc :: Int -> Int -> Document -> TfMap
-getTfFromDoc m n d = getTf $ genFreqMap m n d
+getTfFromDoc :: FreqMap -> TfMap
+getTfFromDoc d = getTf d
+
+getIdfFromDoc :: TfIdf -> FreqMap -> TfMap
+getIdfFromDoc (TfIdf _ _ tfidf) d = getIdfForDoc freqMaps d
+  where
+    freqMaps = M.map (\(TfMap m) -> m) tfidf
+
+getTfIdfFromDoc :: Int -> Int -> TfIdf -> Document -> TfMap
+getTfIdfFromDoc m n tfidf doc = TfMap $ M.intersectionWith (*) tf idf
+  where
+    freqMap = genFreqMap m n doc
+    (TfMap tf) = getTfFromDoc freqMap
+    (TfMap idf) = getIdfFromDoc tfidf freqMap
 
 cosineSimilarity :: TfMap -> TfMap -> Double
 cosineSimilarity (TfMap m1) (TfMap m2) =
-  sum . fmap snd . M.toList . M.intersectionWith (*) m1 $ m2
+  (sum . fmap snd . M.toList . M.intersectionWith (*) m1 $ m2) / totalSize
+  where
+    size = M.foldl' (+) 0.0
+    totalSize = (size m1) * (size m2)
 
 getSimilarities :: TfMap -> TfIdf -> Map Text Double
 getSimilarities phrase tfidf = M.map (cosineSimilarity phrase) (tfidfFreqs tfidf)
@@ -133,8 +154,8 @@ bestMatch phrase tfidf = fst $ getMatch (M.toList matches)
 
 phraseVals :: Text -> TfIdf -> [(Text, Double)]
 phraseVals phrase t@(TfIdf m n _) =
-  sortOn (negate . snd) $ M.toList $ getSimilarities (getTfFromDoc m n $ mkDocument "" phrase) t
+  sortOn (negate . snd) $ M.toList $ getSimilarities (getTfIdfFromDoc m n t $ mkDocument "" phrase) t
 
 matchPhrase :: Text -> TfIdf -> Maybe Text
 matchPhrase phrase t@(TfIdf m n _) =
-  bestMatch (getTfFromDoc m n $ mkDocument "" phrase) t
+  bestMatch (getTfIdfFromDoc m n t $ mkDocument "" phrase) t

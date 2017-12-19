@@ -40,7 +40,7 @@ packages:
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 # s
-extra-deps: [Crypto-4.2.5.1, pipes-http-1.0.5, string-random-0.1.0.0, pipes-aeson-0.4.1.8]
+extra-deps: [Crypto-4.2.5.1, pipes-http-1.0.5, string-random-0.1.0.0, pipes-aeson-0.4.1.8, logging-3.0.4]
 
 # Override default flag values for local packages and extra-deps
 flags: {}

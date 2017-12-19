@@ -45,6 +45,9 @@ library:
   - yaml
   - containers
   - directory
+  - monad-loops
+  - logging
+  - monad-control
 
 executables:
   ShantyBot-exe:
