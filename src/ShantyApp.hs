@@ -44,7 +44,7 @@ unPascalCase text = go (breaker text) ""
     go (n, m) res = go (breaker $ T.drop 1 m) (res <> n <> " " <> T.take 1 m)
 
 wordsToLimit :: Int -> Text -> Text
-wordsToLimit n text = go (T.strip <$> T.words text) "" 0
+wordsToLimit n text = go (T.words text) "" 0
   where
     go [] res _ = T.strip res
     go (x:xs) res m =
