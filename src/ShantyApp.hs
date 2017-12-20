@@ -6,11 +6,14 @@ module ShantyApp where
 
 import Prelude hiding (readFile, writeFile)
 import Control.Concurrent (threadDelay, forkIO)
+import qualified Control.Concurrent.STM as STM
 import qualified Control.Logging as L
 import Control.Monad ((<=<))
 import Control.Monad.Loops (iterateM_)
 import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.Reader.Class (MonadReader, ask)
 import Control.Monad.Trans.Control (MonadBaseControl)
+import Control.Monad.Trans.Reader (ReaderT, runReaderT)
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Maybe (mapMaybe, fromMaybe)
@@ -25,7 +28,7 @@ import qualified Network.Wai.Handler.Warp as Warp
 
 import TextMining.Document
 import TextMining.RetrievalService
-import TextMining.RetrievalReader (mkConfig)
+import TextMining.RetrievalReader (mkConfig, DocumentRetrieval(..))
 import TextMining.RetrievalEndpoint
 import Twitter.Internal.AccessInfo
 import Twitter.Streaming
@@ -66,11 +69,16 @@ respondToTweet docMap tfidf tweet = songMsg <$> song
                     songText = fromMaybe "" $ M.lookup s docMap
                 in (tweet, respondToPerson <> msg <> wordsToLimit (140 - size - 4) songText <> " ...")
 
-runCycle :: MonadIO m => Manager -> Map Text Text -> TfIdf ->
+runCycle :: (MonadIO m, MonadReader DocumentRetrieval m) =>
+  Manager ->
   (Maybe Text -> m Request) ->
   (Tweet -> Text -> m Request) ->
-  Maybe Text -> m (Maybe Text)
-runCycle manager docMap tfidf get post prevId = do
+  Maybe Text ->
+  m (Maybe Text)
+runCycle manager get post prevId = do
+  docState <- ask
+  docMap <- liftIO $ STM.readTVarIO (rcDocs docState)
+  tfidf <- liftIO $ STM.readTVarIO (rcTfidf docState)
   getter <- get prevId
   (tweets :: [Tweet]) <- queryEndpoint manager getter
   liftIO $ L.log' . T.pack $ show tweets
@@ -84,28 +92,31 @@ runCycle manager docMap tfidf get post prevId = do
     maxId = if null ids then Nothing else Just $ maximum ids
   return $ T.pack . show <$> maxId
 
+mainProg :: (MonadIO m, MonadReader DocumentRetrieval m) => Config -> m ()
+mainProg cfg = do
+  manager <- liftIO $ newManager tlsManagerSettings
+  let
+    idFile = "data/lastId"
+    returnId prevId Nothing  = prevId
+    returnId _ i@(Just _) = i
+    fromId prevId = do
+      nextId <- runCycle manager (getMentions cfg) (postReply cfg) prevId
+      maybe (return ()) (liftIO . writeFile idFile) nextId
+      liftIO $ threadDelay (1000 * 1000 * (configPollFreq cfg))
+      return $ returnId prevId nextId
+  fileExists <- liftIO $ doesFileExist idFile
+  firstId <- liftIO $ if fileExists then Just <$> readFile idFile else return Nothing
+  iterateM_ fromId firstId
+  return ()
+
 runService :: (MonadBaseControl IO m, MonadIO m) => m ()
 runService = do
   cfg <- getConfig
   (docs, tfidf) <- liftIO $ getTfIdfFromDir songDirectory 1 4
   serverCfg <- mkConfig docs tfidf
-  liftIO . forkIO . Warp.run 8803 . S.serve documentAPI . documentServer $ serverCfg
   let
     logger Nothing = L.withStdoutLogging
     logger (Just logfile) = L.withFileLogging logfile
-  let mainProg = do
-        manager <- newManager tlsManagerSettings
-        let
-          idFile = "data/lastId"
-          returnId prevId Nothing  = prevId
-          returnId _ i@(Just _) = i
-          fromId prevId = do
-            nextId <- runCycle manager docs tfidf (getMentions cfg) (postReply cfg) prevId
-            maybe (return ()) (writeFile idFile) nextId
-            threadDelay (1000 * 1000 * (configPollFreq cfg))
-            return $ returnId prevId nextId
-        fileExists <- doesFileExist idFile
-        firstId <- if fileExists then Just <$> readFile idFile else return Nothing
-        iterateM_ fromId firstId
-        return ()
-  logger (configLogfile cfg) $ liftIO mainProg
+  logger (configLogfile cfg) $ do
+    liftIO . forkIO . Warp.run 8803 . S.serve documentAPI . documentServer $ serverCfg
+    liftIO (runReaderT (mainProg cfg) serverCfg)

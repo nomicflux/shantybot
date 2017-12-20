@@ -1,18 +1,26 @@
 {-# LANGUAGE OverloadedStrings #-}
 module TextMining.RetrievalService where
 
-import Prelude hiding (readFile)
+import Prelude hiding (readFile, writeFile)
 
 import System.Directory
+import qualified Control.Logging as L
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.Map as M
 import Data.Monoid ((<>))
-import Data.Text (pack, Text)
-import Data.Text.IO (readFile)
+import Data.Text (pack, Text, replace, unpack)
+import Data.Text.IO (readFile, writeFile)
 
 import TextMining.Document
 
 songDirectory :: FilePath
 songDirectory = "data/songs"
+
+writeNewDoc :: MonadIO m => Text -> Text -> m ()
+writeNewDoc name text = do
+  let fileName = songDirectory <> "/" <> (unpack $ replace " " "" name) <> ".txt"
+  L.log' $ pack $ "Writing file " <> fileName
+  liftIO $ writeFile fileName text
 
 fileToDoc :: FilePath -> FilePath -> IO (Text, Document)
 fileToDoc dir fileName =

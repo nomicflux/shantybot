@@ -7,6 +7,7 @@ module TextMining.RetrievalEndpoint where
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Reader (ask)
 import qualified Control.Concurrent.STM as STM
+import qualified Control.Logging as L
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Maybe (fromMaybe)
@@ -32,7 +33,7 @@ type DocumentAPI = "gettitles" :> Get '[JSON] [Text]
 documentAPI :: Proxy DocumentAPI
 documentAPI = Proxy
 
-documentServer :: RetrievalConfig -> Server DocumentAPI
+documentServer :: DocumentRetrieval -> Server DocumentAPI
 documentServer cfg = enter (readerTToHandler cfg) documentServerT
 
 documentServerT :: ServerT DocumentAPI AppM
@@ -60,21 +61,13 @@ getDoc name = do
 
 addDoc :: Text -> Text -> AppM Bool
 addDoc name text = do
-  docVar <- rcDocs <$> ask
-  tfidfVar <- rcTfidf <$> ask
-  oldTfidf <- liftIO . STM.readTVarIO $ tfidfVar
-  liftIO . STM.atomically . STM.modifyTVar docVar $ (M.insert name text)
-  newDocMap <- liftIO . STM.readTVarIO $ docVar
-  let
-    minGrams = maybe 1 tfidfMinGrams oldTfidf
-    maxGrams = maybe 4 tfidfMaxGrams oldTfidf
-    newDocs = snd <$> (M.toList $ M.mapWithKey mkDocument newDocMap)
-    newTfidf = genTfIdfFromDocs minGrams maxGrams newDocs
-  liftIO . STM.atomically . STM.writeTVar tfidfVar . Just $ newTfidf
+  docVar <- ask
+  L.debug' $ "Adding " <> name <> " with text " <> text
+  updateDocs name text docVar
   return True
 
 matchToDocs :: Text -> AppM (Maybe Text)
 matchToDocs phrase = do
   tfidfVar <- rcTfidf <$> ask
   tfidf <- liftIO $ STM.readTVarIO tfidfVar
-  return $ tfidf >>= matchPhrase phrase
+  return $ matchPhrase phrase tfidf
