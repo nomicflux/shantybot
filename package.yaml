@@ -48,6 +48,10 @@ library:
   - monad-loops
   - logging
   - monad-control
+  - servant >= 0.11
+  - servant-server >= 0.11
+  - stm
+  - warp
 
 executables:
   ShantyBot-exe:

@@ -5,7 +5,7 @@
 module ShantyApp where
 
 import Prelude hiding (readFile, writeFile)
-import Control.Concurrent (threadDelay)
+import Control.Concurrent (threadDelay, forkIO)
 import qualified Control.Logging as L
 import Control.Monad ((<=<))
 import Control.Monad.Loops (iterateM_)
@@ -20,9 +20,13 @@ import Data.Text.IO (readFile, writeFile)
 import qualified Data.Text as T
 import Pipes.HTTP
 import System.Directory (doesFileExist)
+import qualified Servant as S
+import qualified Network.Wai.Handler.Warp as Warp
 
 import TextMining.Document
 import TextMining.RetrievalService
+import TextMining.RetrievalReader (mkConfig)
+import TextMining.RetrievalEndpoint
 import Twitter.Internal.AccessInfo
 import Twitter.Streaming
 import Twitter.Tweet
@@ -44,7 +48,7 @@ unPascalCase text = go (breaker text) ""
     go (n, m) res = go (breaker $ T.drop 1 m) (res <> n <> " " <> T.take 1 m)
 
 wordsToLimit :: Int -> Text -> Text
-wordsToLimit n text = go (T.words text) "" 0
+wordsToLimit n text = go (filter (/= "") . T.words $ text) "" 0
   where
     go [] res _ = T.strip res
     go (x:xs) res m =
@@ -83,12 +87,14 @@ runCycle manager docMap tfidf get post prevId = do
 runService :: (MonadBaseControl IO m, MonadIO m) => m ()
 runService = do
   cfg <- getConfig
+  (docs, tfidf) <- liftIO $ getTfIdfFromDir songDirectory 1 4
+  serverCfg <- mkConfig docs tfidf
+  liftIO . forkIO . Warp.run 8803 . S.serve documentAPI . documentServer $ serverCfg
   let
     logger Nothing = L.withStdoutLogging
     logger (Just logfile) = L.withFileLogging logfile
   let mainProg = do
         manager <- newManager tlsManagerSettings
-        (docs, tfidf) <- getTfIdfFromDir songDirectory 1 4
         let
           idFile = "data/lastId"
           returnId prevId Nothing  = prevId
