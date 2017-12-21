@@ -22,20 +22,20 @@ writeNewDoc name text = do
   L.log' $ pack $ "Writing file " <> fileName
   liftIO $ writeFile fileName text
 
-fileToDoc :: FilePath -> FilePath -> IO (Text, Document)
+fileToDoc :: FilePath -> FilePath -> IO Document
 fileToDoc dir fileName =
   let docName = pack $ takeWhile (/= '.') fileName
       filePath = dir <> "/" <> fileName
-  in (\t -> (t, mkDocument docName t)) <$> readFile filePath
+  in (mkDocument docName) <$> readFile filePath
 
-getFiles :: FilePath -> IO [(Text, Document)]
+getFiles :: FilePath -> IO [Document]
 getFiles dir = do
   files <- listDirectory dir
   mapM (fileToDoc dir) files
 
-getTfIdfFromDir :: FilePath -> Int -> Int -> IO (M.Map Text Text, TfIdf)
+getTfIdfFromDir :: FilePath -> Int -> Int -> IO (Documents, TfIdf)
 getTfIdfFromDir dir minGrams maxGrams = do
   docs <- getFiles dir
-  let docMap = M.fromList $ (\(t, d) -> (docName d, t)) <$> docs
-      tfidf = genTfIdfFromDocs minGrams maxGrams (snd <$> docs)
+  let docMap = M.fromList $ (\d -> (docName d, d)) <$> docs
+      tfidf = genTfIdfFromDocs minGrams maxGrams docs
   return (docMap, tfidf)

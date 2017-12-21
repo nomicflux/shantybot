@@ -17,7 +17,7 @@ import qualified Data.Text.IO as TIO
 
 import Servant (ServantErr, Handler, (:~>)(..))
 
-import TextMining.Document (Document, TfIdf(..), mkDocument, genTfIdfFromDocs)
+import TextMining.Document (Document, Documents, TfIdf(..), mkDocument, genTfIdfFromDocs)
 import TextMining.RetrievalService (songDirectory, writeNewDoc)
 
 type AppM = ReaderT DocumentRetrieval IO
@@ -25,11 +25,11 @@ type AppM = ReaderT DocumentRetrieval IO
 readerTToHandler :: DocumentRetrieval -> AppM :~> Handler
 readerTToHandler cfg = NT (\r -> liftIO $ runReaderT r cfg)
 
-data DocumentRetrieval = DocumentRetrieval { rcDocs :: TVar (Map Text Text)
+data DocumentRetrieval = DocumentRetrieval { rcDocs :: TVar Documents
                                            , rcTfidf :: TVar TfIdf
                                            }
 
-mkConfig :: MonadIO m => Map Text Text -> TfIdf -> m DocumentRetrieval
+mkConfig :: MonadIO m => Documents -> TfIdf -> m DocumentRetrieval
 mkConfig docs tfidf = do
   documents <- liftIO $ STM.newTVarIO docs
   tfidf <- liftIO $ STM.newTVarIO tfidf
@@ -42,8 +42,10 @@ updateDocs name text docState = do
   synchronized <- liftIO $ STM.atomically $ do
     oldDocs <- STM.readTVar $ docVar
     oldTfidf <- STM.readTVar $ tfidfVar
-    let newDocs = snd <$> (M.toList $ M.mapWithKey mkDocument (M.insert name text oldDocs))
-    STM.modifyTVar docVar $ (M.insert name text)
+    let
+      thisDoc = mkDocument name text
+      newDocs = thisDoc : (snd <$> M.toList oldDocs)
+    STM.modifyTVar docVar $ (M.insert name thisDoc)
     let
       minGrams = tfidfMinGrams oldTfidf
       maxGrams = tfidfMaxGrams oldTfidf

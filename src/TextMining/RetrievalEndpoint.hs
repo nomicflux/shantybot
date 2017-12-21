@@ -24,11 +24,10 @@ import TextMining.RetrievalReader
 import TextMining.RetrievalService
 
 type DocumentAPI = "gettitles" :> Get '[JSON] [Text]
-              :<|> "getsongs" :> Get '[JSON] (Map Text Text)
-              :<|> "get" :> Capture "name" Text :> Get '[JSON] (Maybe Text)
-              :<|> "add" :> Capture "name" Text :> ReqBody '[PlainText] Text :> Post '[JSON] Bool
-              :<|> "match" :> Capture "phrase" Text :> Get '[JSON] (Maybe Text)
-
+              :<|> "getsongs" :> Get '[JSON] Documents
+              :<|> "get" :> Capture "name" Text :> Get '[JSON] (Maybe Document)
+              :<|> "add" :> Capture "name" Text :> ReqBody '[JSON] Text :> Post '[JSON] Bool
+              :<|> "match" :> ReqBody '[JSON] Text :> Post '[JSON] (Maybe Document)
 
 documentAPI :: Proxy DocumentAPI
 documentAPI = Proxy
@@ -48,12 +47,12 @@ getAllTitles = do
   docVar <- rcDocs <$> ask
   M.keys <$> (liftIO . STM.readTVarIO $ docVar)
 
-getAllDocs :: AppM (Map Text Text)
+getAllDocs :: AppM Documents
 getAllDocs = do
   docVar <- rcDocs <$> ask
   liftIO . STM.readTVarIO $ docVar
 
-getDoc :: Text -> AppM (Maybe Text)
+getDoc :: Text -> AppM (Maybe Document)
 getDoc name = do
   docVar <- rcDocs <$> ask
   docMap <- liftIO . STM.readTVarIO $ docVar
@@ -66,8 +65,13 @@ addDoc name text = do
   updateDocs name text docVar
   return True
 
-matchToDocs :: Text -> AppM (Maybe Text)
+matchToDocs :: Text -> AppM (Maybe Document)
 matchToDocs phrase = do
+  liftIO $ L.debug' phrase
   tfidfVar <- rcTfidf <$> ask
+  docsVar <- rcDocs <$> ask
   tfidf <- liftIO $ STM.readTVarIO tfidfVar
-  return $ matchPhrase phrase tfidf
+  docs <- liftIO $ STM.readTVarIO docsVar
+  let name = matchPhrase phrase $ tfidf
+      doc = name >>= (flip M.lookup) docs
+  return doc

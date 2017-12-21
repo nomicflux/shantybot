@@ -1,9 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StrictData #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module TextMining.Document where
 
 import Control.Monad (msum)
+import Data.Aeson (FromJSON, parseJSON, withObject, (.:), ToJSON, toJSON, object, (.=))
 import Data.List (tails, length, foldl', sortOn)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
@@ -13,8 +15,25 @@ import Data.Text (Text)
 import qualified Data.Text as T
 
 data Document = Document { docName :: Text
-                         , ext :: [Text]
+                         , docText :: Text
                          }
+
+instance FromJSON Document where
+  parseJSON = withObject "DocObject" $ \o -> do
+    docName <- o .: "name"
+    docText <- o .: "text"
+    return Document{..}
+
+instance ToJSON Document where
+  toJSON Document{..} = object [ "name" .= docName
+                               , "text" .= docText
+                               ]
+
+type Documents = Map Text Document
+
+data CleanedDoc = CleanedDoc { cdocName :: Text
+                             , cdocText :: [Text]
+                             }
   deriving (Show, Eq)
 
 newtype FreqMap = FreqMap (Map Text Int)
@@ -41,8 +60,14 @@ punctuation = ",.?!-:;\"\'"
 cleanText :: Text -> [Text]
 cleanText = filter (/= "") . (T.strip <$>) . T.words . T.toLower . T.filter (not . (`elem` punctuation))
 
+mkCleanedDoc :: Document -> CleanedDoc
+mkCleanedDoc Document{..} = CleanedDoc docName $ cleanText docText
+
+mkCleanedDocFromText :: Text -> Text -> CleanedDoc
+mkCleanedDocFromText = (mkCleanedDoc .) . mkDocument
+
 mkDocument :: Text -> Text -> Document
-mkDocument name text = Document name $ cleanText text
+mkDocument name text = Document name text
 
 comboText :: Text
 comboText = " "
@@ -55,26 +80,19 @@ mkNGram n doc
 genNGrams :: [Text] -> Int -> [Text]
 genNGrams doc n = mapMaybe (mkNGram n) (take n <$> tails doc)
 
-genNMGrams :: Document -> Int -> Int -> Document
-genNMGrams (Document name doc) minGrams maxGrams = Document name . msum . map (genNGrams doc) $ [minGrams .. maxGrams]
+genNMGrams :: CleanedDoc -> Int -> Int -> CleanedDoc
+genNMGrams (CleanedDoc name doc) minGrams maxGrams = CleanedDoc name . msum . map (genNGrams doc) $ [minGrams .. maxGrams]
 
-genFreqMap :: Int -> Int -> Document -> FreqMap
+genFreqMap :: Int -> Int -> CleanedDoc -> FreqMap
 genFreqMap minGrams maxGrams doc = FreqMap $ foldl' (\acc nGram -> M.insertWith (+) nGram 1 acc) M.empty nmGrams
   where
-    (Document _ nmGrams) = genNMGrams doc minGrams maxGrams
+    (CleanedDoc _ nmGrams) = genNMGrams doc minGrams maxGrams
 
-genCorpus :: Int -> Int -> [Document] -> Corpus
+genCorpus :: Int -> Int -> [CleanedDoc] -> Corpus
 genCorpus minGrams maxGrams docs = Corpus minGrams maxGrams $ M.fromList freqs
   where
     gen = genFreqMap minGrams maxGrams
-    freqs = fmap (\doc@(Document name _) -> (name, gen doc)) docs
-
-addToCorpus :: Corpus -> Text -> Text -> Corpus
-addToCorpus (Corpus m n docs) name text = Corpus m n newDocs
-  where
-    newDoc = mkDocument name text
-    newFreqs = genFreqMap m n newDoc
-    newDocs = M.insert name newFreqs docs
+    freqs = fmap (\doc@(CleanedDoc name _) -> (name, gen doc)) docs
 
 getTf :: FreqMap -> TfMap
 getTf (FreqMap freqs) = TfMap $ normalize freqs
@@ -116,7 +134,7 @@ genTfIdf corpus@(Corpus m n freqMaps) =
     mergeTfMap (TfMap m1) (TfMap m2) = TfMap $ M.intersectionWith (*) m1 m2
 
 genTfIdfFromDocs :: Int -> Int -> [Document] -> TfIdf
-genTfIdfFromDocs m n d = genTfIdf $ genCorpus m n d
+genTfIdfFromDocs m n d = genTfIdf $ genCorpus m n (mkCleanedDoc <$> d)
 
 getTfFromDoc :: FreqMap -> TfMap
 getTfFromDoc d = getTf d
@@ -126,10 +144,17 @@ getIdfFromDoc (TfIdf _ _ tfidf) d = getIdfForDoc freqMaps d
   where
     freqMaps = M.map (\(TfMap m) -> m) tfidf
 
+getTfIdfFromCDoc :: Int -> Int -> TfIdf -> CleanedDoc -> TfMap
+getTfIdfFromCDoc m n tfidf doc = TfMap $ M.intersectionWith (*) tf idf
+  where
+    freqMap = genFreqMap m n doc
+    (TfMap tf) = getTfFromDoc freqMap
+    (TfMap idf) = getIdfFromDoc tfidf freqMap
+
 getTfIdfFromDoc :: Int -> Int -> TfIdf -> Document -> TfMap
 getTfIdfFromDoc m n tfidf doc = TfMap $ M.intersectionWith (*) tf idf
   where
-    freqMap = genFreqMap m n doc
+    freqMap = genFreqMap m n $ mkCleanedDoc doc
     (TfMap tf) = getTfFromDoc freqMap
     (TfMap idf) = getIdfFromDoc tfidf freqMap
 
@@ -154,8 +179,8 @@ bestMatch phrase tfidf = fst $ getMatch (M.toList matches)
 
 phraseVals :: Text -> TfIdf -> [(Text, Double)]
 phraseVals phrase t@(TfIdf m n _) =
-  sortOn (negate . snd) $ M.toList $ getSimilarities (getTfIdfFromDoc m n t $ mkDocument "" phrase) t
+  sortOn (negate . snd) $ M.toList $ getSimilarities (getTfIdfFromCDoc m n t $ mkCleanedDocFromText "" phrase) t
 
 matchPhrase :: Text -> TfIdf -> Maybe Text
 matchPhrase phrase t@(TfIdf m n _) =
-  bestMatch (getTfIdfFromDoc m n t $ mkDocument "" phrase) t
+  bestMatch (getTfIdfFromCDoc m n t $ mkCleanedDocFromText "" phrase) t

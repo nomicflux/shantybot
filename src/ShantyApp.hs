@@ -8,7 +8,7 @@ import Prelude hiding (readFile, writeFile)
 import Control.Concurrent (threadDelay, forkIO)
 import qualified Control.Concurrent.STM as STM
 import qualified Control.Logging as L
-import Control.Monad ((<=<))
+import Control.Monad ((<=<), forever)
 import Control.Monad.Loops (iterateM_)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader.Class (MonadReader, ask)
@@ -57,7 +57,7 @@ wordsToLimit n text = go (filter (/= "") . T.words $ text) "" 0
     go (x:xs) res m =
       if m + T.length x > n then res else go xs (res <> " " <> x) (m + T.length x + 1)
 
-respondToTweet :: Map Text Text -> TfIdf -> Tweet -> Maybe (Tweet, Text)
+respondToTweet :: Documents -> TfIdf -> Tweet -> Maybe (Tweet, Text)
 respondToTweet docMap tfidf tweet = songMsg <$> song
   where
     respondToPerson = "@" <> (tweetUserScreenName $ tweetUser tweet)  <> " "
@@ -66,7 +66,7 @@ respondToTweet docMap tfidf tweet = songMsg <$> song
     song = matchPhrase (filterOutMention $ tweetText tweet) tfidf
     songMsg s = let msg = greeting <> unPascalCase s <> "? "
                     size = T.length msg
-                    songText = fromMaybe "" $ M.lookup s docMap
+                    songText = fromMaybe "" $ docText <$> M.lookup s docMap
                 in (tweet, respondToPerson <> msg <> wordsToLimit (140 - size - 4) songText <> " ...")
 
 runCycle :: (MonadIO m, MonadReader DocumentRetrieval m) =>
@@ -118,5 +118,6 @@ runService = do
     logger Nothing = L.withStdoutLogging
     logger (Just logfile) = L.withFileLogging logfile
   logger (configLogfile cfg) $ do
-    liftIO . forkIO . Warp.run 8803 . S.serve documentAPI . documentServer $ serverCfg
-    liftIO (runReaderT (mainProg cfg) serverCfg)
+    --liftIO . Warp.run 8803 . S.serve documentAPI . documentServer $ serverCfg
+    liftIO . forkIO . runReaderT (mainProg cfg) $ serverCfg
+    liftIO . Warp.run 8803 . S.serve documentAPI . documentServer $ serverCfg
