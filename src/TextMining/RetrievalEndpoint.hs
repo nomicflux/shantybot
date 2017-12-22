@@ -26,8 +26,8 @@ import TextMining.RetrievalService
 type DocumentAPI = "gettitles" :> Get '[JSON] [Text]
               :<|> "getsongs" :> Get '[JSON] Documents
               :<|> "get" :> Capture "name" Text :> Get '[JSON] (Maybe Document)
-              :<|> "add" :> Capture "name" Text :> ReqBody '[JSON] Text :> Post '[JSON] Bool
-              :<|> "match" :> ReqBody '[JSON] Text :> Post '[JSON] (Maybe Document)
+              :<|> "add" :> Capture "name" Text :> ReqBody '[JSON] Phrase :> Post '[JSON] Bool
+              :<|> "match" :> ReqBody '[JSON] Phrase :> Post '[JSON] (Maybe Document)
 
 documentAPI :: Proxy DocumentAPI
 documentAPI = Proxy
@@ -58,15 +58,15 @@ getDoc name = do
   docMap <- liftIO . STM.readTVarIO $ docVar
   return $ M.lookup name docMap
 
-addDoc :: Text -> Text -> AppM Bool
-addDoc name text = do
+addDoc :: Text -> Phrase -> AppM Bool
+addDoc name (Phrase text) = do
   docVar <- ask
   L.debug' $ "Adding " <> name <> " with text " <> text
   updateDocs name text docVar
   return True
 
-matchToDocs :: Text -> AppM (Maybe Document)
-matchToDocs phrase = do
+matchToDocs :: Phrase -> AppM (Maybe Document)
+matchToDocs (Phrase phrase) = do
   liftIO $ L.debug' phrase
   tfidfVar <- rcTfidf <$> ask
   docsVar <- rcDocs <$> ask

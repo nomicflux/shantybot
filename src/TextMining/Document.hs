@@ -14,6 +14,15 @@ import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
 
+newtype Phrase = Phrase Text
+
+instance FromJSON Phrase where
+  parseJSON = withObject "PhraseObject" $ \o -> do
+    Phrase <$> o .: "phrase"
+
+instance ToJSON Phrase where
+  toJSON (Phrase text) = object [ "phrase" .= text ]
+
 data Document = Document { docName :: Text
                          , docText :: Text
                          }

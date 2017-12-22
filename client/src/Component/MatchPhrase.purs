@@ -3,8 +3,8 @@ module Component.MatchPhrase where
 import Prelude
 
 import Control.Monad.Aff (Aff)
+import Data.Argonaut (class EncodeJson, encodeJson, jsonSingletonObject)
 import Data.Maybe (Maybe(..), fromMaybe)
-import Debug.Trace (spy)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -15,24 +15,28 @@ import Network.HTTP.Affjax as AX
 data Query a = SendPhrase a
              | SetPhrase String a
 
-type State = { phrase :: String
+data Phrase = Phrase String
+
+instance encodePhrase :: EncodeJson Phrase where
+  encodeJson (Phrase phrase) = jsonSingletonObject "phrase" (encodeJson phrase)
+
+type State = { phrase :: Phrase
              , text :: Maybe String
              , loading :: Boolean
              }
 
 initialState :: State
-initialState = { phrase: "", text: Nothing, loading: false }
+initialState = { phrase: Phrase "", text: Nothing, loading: false }
 
 eval :: forall eff. Query ~> H.ComponentDSL State Query Void (Aff (ajax :: AJAX | eff))
 eval = case _ of
   SetPhrase phrase next -> do
-    H.modify (_ { phrase = phrase })
+    H.modify (_ { phrase = Phrase phrase })
     pure next
   SendPhrase next -> do
     phrase <- H.gets _.phrase
     H.modify (_ { loading = true })
-    response <- H.liftAff $ AX.post "http://127.0.0.1:8803/match/" phrase
-    let _ = spy response
+    response <- H.liftAff $ AX.post "http://127.0.0.1:8803/match" $ encodeJson phrase
     H.modify (_ { text = Just response.response, loading = false })
     pure next
 
