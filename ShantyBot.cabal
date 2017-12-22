@@ -1,6 +1,8 @@
--- This file has been generated from package.yaml by hpack version 0.17.1.
+-- This file has been generated from package.yaml by hpack version 0.20.0.
 --
 -- see: https://github.com/sol/hpack
+--
+-- hash: b527a3ac6d3b1508ec18186b06fc1dfc950d90b6eb20c2767b250982d4680647
 
 name:           ShantyBot
 version:        0.1.0.0
@@ -28,35 +30,37 @@ library
   hs-source-dirs:
       src
   build-depends:
-      base >= 4.7 && < 5
+      aeson
     , base
-    , text
-    , aeson
-    , bytestring
-    , cryptohash
-    , time
-    , http-types
-    , byteable
-    , string-random
-    , case-insensitive
-    , http-client
-    , pipes
-    , pipes-http
-    , pipes-bytestring
-    , pipes-aeson
     , base64-bytestring
-    , transformers
-    , yaml
+    , byteable
+    , bytestring
+    , case-insensitive
     , containers
+    , cryptohash
     , directory
-    , monad-loops
+    , http-client
+    , http-types
     , logging
     , monad-control
-    , servant >= 0.11
-    , servant-server >= 0.11
-    , stm
-    , warp
+    , monad-loops
     , mtl
+    , pipes
+    , pipes-aeson
+    , pipes-bytestring
+    , pipes-http
+    , servant >=0.11
+    , servant-options
+    , servant-server >=0.11
+    , stm
+    , string-random
+    , text
+    , time
+    , transformers
+    , wai-cors
+    , wai-extra
+    , warp
+    , yaml
   exposed-modules:
       ShantyApp
       TextMining.Document
@@ -69,6 +73,8 @@ library
       Twitter.Tweet
       Twitter.Types
       TwitterAPI
+  other-modules:
+      Paths_ShantyBot
   default-language: Haskell2010
 
 executable ShantyBot-exe
@@ -77,8 +83,10 @@ executable ShantyBot-exe
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >= 4.7 && < 5
-    , ShantyBot
+      ShantyBot
+    , base >=4.7 && <5
+  other-modules:
+      Paths_ShantyBot
   default-language: Haskell2010
 
 test-suite ShantyBot-test
@@ -88,14 +96,15 @@ test-suite ShantyBot-test
       test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >= 4.7 && < 5
+      QuickCheck
     , ShantyBot
-    , hspec
-    , QuickCheck
+    , base >=4.7 && <5
     , bytestring
-    , text
     , containers
+    , hspec
+    , text
   other-modules:
       CorpusSpec
       OAuthSpec
+      Paths_ShantyBot
   default-language: Haskell2010

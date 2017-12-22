@@ -24,7 +24,10 @@ import qualified Data.Text as T
 import Pipes.HTTP
 import System.Directory (doesFileExist)
 import qualified Servant as S
+import qualified Network.Wai.Middleware.Servant.Options as SO
+import qualified Network.Wai.Middleware.RequestLogger as RL
 import qualified Network.Wai.Handler.Warp as Warp
+import qualified Network.Wai.Middleware.Cors as Cors
 
 import TextMining.Document
 import TextMining.RetrievalService
@@ -119,5 +122,6 @@ runService = do
     logger (Just logfile) = L.withFileLogging logfile
   logger (configLogfile cfg) $ do
     --liftIO . Warp.run 8803 . S.serve documentAPI . documentServer $ serverCfg
+    let policy = Cors.simpleCorsResourcePolicy { Cors.corsRequestHeaders = [ "content-type" ] }
     liftIO . forkIO . runReaderT (mainProg cfg) $ serverCfg
-    liftIO . Warp.run 8803 . S.serve documentAPI . documentServer $ serverCfg
+    liftIO $ Warp.run 8803 . RL.logStdoutDev . Cors.cors (const $ Just policy) . SO.provideOptions documentAPI . S.serve documentAPI . documentServer $ serverCfg
