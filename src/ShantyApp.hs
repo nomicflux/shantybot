@@ -122,6 +122,8 @@ runService = do
     logger (Just logfile) = L.withFileLogging logfile
   logger (configLogfile cfg) $ do
     --liftIO . Warp.run 8803 . S.serve documentAPI . documentServer $ serverCfg
-    let policy = Cors.simpleCorsResourcePolicy { Cors.corsRequestHeaders = [ "content-type" ] }
+    let policy = Cors.simpleCorsResourcePolicy { Cors.corsRequestHeaders = [ "content-type" , "Accept", "Method" ]
+                                               , Cors.corsMethods = Cors.simpleMethods
+                                               }
     liftIO . forkIO . runReaderT (mainProg cfg) $ serverCfg
     liftIO $ Warp.run 8803 . RL.logStdoutDev . Cors.cors (const $ Just policy) . SO.provideOptions documentAPI . S.serve documentAPI . documentServer $ serverCfg

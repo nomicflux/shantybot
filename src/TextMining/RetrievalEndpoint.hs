@@ -27,8 +27,8 @@ type DocumentAPI = "gettitles" :> Get '[JSON] [Text]
               :<|> "getsongs" :> Get '[JSON] Documents
               :<|> "get" :> Capture "name" Text :> Get '[JSON] (Maybe Document)
               :<|> "add" :> Capture "name" Text :> ReqBody '[JSON] Phrase :> Post '[JSON] Bool
-              :<|> "match" :> Capture "phrase" Text :> Get '[JSON] (Maybe Document)
-              -- :<|> "match" :> ReqBody '[JSON] Phrase :> Post '[JSON] (Maybe Document)
+              -- :<|> "match" :> Capture "phrase" Text :> Get '[JSON] (Maybe Document)
+              :<|> "match" :> ReqBody '[JSON] Phrase :> Post '[JSON] (Maybe Document)
 
 documentAPI :: Proxy DocumentAPI
 documentAPI = Proxy
@@ -66,10 +66,10 @@ addDoc name (Phrase text) = do
   updateDocs name text docVar
   return True
 
---matchToDocs :: Phrase -> AppM (Maybe Document)
---matchToDocs (Phrase phrase) = do
-matchToDocs :: Text -> AppM (Maybe Document)
-matchToDocs phrase = do
+matchToDocs :: Phrase -> AppM (Maybe Document)
+matchToDocs (Phrase phrase) = do
+--matchToDocs :: Text -> AppM (Maybe Document)
+--matchToDocs phrase = do
   liftIO $ L.debug' phrase
   tfidfVar <- rcTfidf <$> ask
   docsVar <- rcDocs <$> ask

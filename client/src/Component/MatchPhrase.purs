@@ -3,12 +3,12 @@ module Component.MatchPhrase where
 import Prelude
 
 import Control.Monad.Aff (Aff)
-import Debug.Trace (spy)
 import Data.Argonaut (class EncodeJson, encodeJson, jsonSingletonObject)
 import Data.Either (Either(..))
 import Data.HTTP.Method (Method(..))
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.MediaType (MediaType(..))
+import Debug.Trace (spy)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -43,9 +43,9 @@ eval = case _ of
     H.modify (_ { loading = true })
     let
       body = spy (encodeJson phrase)
-      (Phrase text) = phrase
-      req = spy (AX.defaultRequest { url = "http://127.0.0.1:8803/match/" <> text
-                                   , method = Left GET
+      req = spy (AX.defaultRequest { url = "http://127.0.0.1:8803/match"
+                                   , method = Left POST
+                                   , content = Just $ encodeJson phrase
                                    , headers = [ Accept $ MediaType "application/json"
                                                , ContentType $ MediaType "application/json"
                                                ]
@@ -69,15 +69,16 @@ render state =
   HH.div
     [ HP.class_ (HH.ClassName "pure-g") ]
     [ HH.div [ HP.class_ (HH.ClassName "pure-u-1-3") ]
-             [ HH.form [ HP.classes ( HH.ClassName <$> ["pure-form", "pure-form-aligned" ] ) ]
-                       [ HH.div [ HP.class_ (HH.ClassName "pure-control-group") ]
-                                [ HH.label [ HP.for "phrase" ] [ HH.text "Phrase to match: " ]
-                                , HH.input [ HE.onValueInput (HE.input SetPhrase) ]
-                                ]
-                       , HH.button [ HP.class_ (HH.ClassName "pure-button")
-                                   , HE.onClick (HE.input_ SendPhrase)
-                                   ] [ HH.text "Get Match" ]
-                       ] ]
+             [ HH.div [ HP.classes ( HH.ClassName <$> ["pure-form", "pure-form-aligned" ] )
+                      ]
+                      [ HH.div [ HP.class_ (HH.ClassName "pure-control-group") ]
+                               [ HH.label [ HP.for "phrase" ] [ HH.text "Phrase to match: " ]
+                               , HH.input [ HE.onValueInput (HE.input SetPhrase) ]
+                               ]
+                      , HH.button [ HP.class_ (HH.ClassName "pure-button")
+                                  , HE.onClick (HE.input_ SendPhrase)
+                                  ] [ HH.text "Get Match" ]
+                      ] ]
     , songDiv state
     ]
 
