@@ -2,13 +2,15 @@ module Component.MatchPhrase where
 
 import Prelude
 
+import Control.Monad (join)
 import Control.Monad.Aff (Aff)
-import Data.Argonaut (class EncodeJson, encodeJson, jsonSingletonObject)
+import Data.Argonaut (class EncodeJson, encodeJson, foldJsonObject, fromObject, jsonSingletonObject, toString)
 import Data.Either (Either(..))
 import Data.HTTP.Method (Method(..))
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.MediaType (MediaType(..))
-import Debug.Trace (spy)
+import Data.StrMap (lookup)
+import Data.StrMap as StrMap
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -42,17 +44,18 @@ eval = case _ of
     phrase <- H.gets _.phrase
     H.modify (_ { loading = true })
     let
-      body = spy (encodeJson phrase)
-      req = spy (AX.defaultRequest { url = "http://127.0.0.1:8803/match"
-                                   , method = Left POST
-                                   , content = Just $ encodeJson phrase
-                                   , headers = [ Accept $ MediaType "application/json"
-                                               , ContentType $ MediaType "application/json"
-                                               ]
-                                   })
+      req = AX.defaultRequest { url = "http://127.0.0.1:8803/match"
+                              , method = Left POST
+                              , content = Just $ encodeJson phrase
+                              , headers = [ Accept $ MediaType "application/json"
+                                          , ContentType $ MediaType "application/json"
+                                          ]
+                              }
     response <- H.liftAff $ AX.affjax req
-    let newText = spy response.response
-    H.modify (_ { text = Just newText, loading = false })
+    let newText = do
+          obj <- foldJsonObject Nothing (lookup "text") response.response
+          toString obj
+    H.modify (_ { text = newText, loading = false })
     pure next
 
 songDiv :: State -> H.ComponentHTML Query
