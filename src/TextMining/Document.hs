@@ -17,7 +17,7 @@ import qualified Data.Text as T
 newtype Phrase = Phrase Text
 
 instance FromJSON Phrase where
-  parseJSON = withObject "PhraseObject" $ \o -> do
+  parseJSON = withObject "PhraseObject" $ \o ->
     Phrase <$> o .: "phrase"
 
 instance ToJSON Phrase where
@@ -50,7 +50,7 @@ newtype FreqMap = FreqMap (Map Text Int)
 
 data Corpus = Corpus { corpusMinGrams :: Int
                      , corpusMaxGrams :: Int
-                     , corpusFreqs :: (Map Text FreqMap)
+                     , corpusFreqs :: Map Text FreqMap
                      }
   deriving (Show, Eq)
 
@@ -59,15 +59,21 @@ newtype TfMap = TfMap (Map Text Double)
 
 data TfIdf = TfIdf { tfidfMinGrams :: Int
                    , tfidfMaxGrams :: Int
-                   , tfidfFreqs :: (Map Text TfMap)
+                   , tfidfFreqs :: Map Text TfMap
                    }
   deriving (Show, Eq)
 
 punctuation :: String
 punctuation = ",.?!-:;\"\'"
 
+singularize :: Text -> Text
+singularize word
+  | T.takeEnd 3 word == "ies" = T.dropEnd 3 word <> "y"
+  | T.takeEnd 1 word == "s" = T.dropEnd 1 word
+  | otherwise = word
+
 cleanText :: Text -> [Text]
-cleanText = filter (/= "") . (T.strip <$>) . T.words . T.toLower . T.filter (not . (`elem` punctuation))
+cleanText = filter (/= "") . (T.singularize . T.strip <$>) . T.words . T.toLower . T.filter (not . (`elem` punctuation))
 
 mkCleanedDoc :: Document -> CleanedDoc
 mkCleanedDoc Document{..} = CleanedDoc docName $ cleanText docText
@@ -76,7 +82,7 @@ mkCleanedDocFromText :: Text -> Text -> CleanedDoc
 mkCleanedDocFromText = (mkCleanedDoc .) . mkDocument
 
 mkDocument :: Text -> Text -> Document
-mkDocument name text = Document name text
+mkDocument = Document
 
 comboText :: Text
 comboText = " "
@@ -119,12 +125,12 @@ getIdfForDoc freqMaps (FreqMap freqs) = TfMap $ M.mapWithKey getIdfWord freqs
     allKeys = foldl (\acc m -> acc ++ M.keys m) [] freqMaps
 
     getTotal :: Text -> Int
-    getTotal word = foldl (\acc m -> acc + (maybe 0 (const 1) (M.lookup word m))) 0 freqMaps
+    getTotal word = foldl (\acc m -> acc + maybe 0 (const 1) (M.lookup word m)) 0 freqMaps
 
     getIdfWord :: Text -> Int -> Double
     getIdfWord word _ =
       let bottom = getTotal word
-      in numTexts / (fromIntegral $ 1 + bottom)
+      in numTexts / fromIntegral (1 + bottom)
 
 getIdf :: Corpus -> Map Text TfMap
 getIdf (Corpus _ _ docs) = M.map (getIdfForDoc freqMaps) docs
@@ -146,10 +152,10 @@ genTfIdfFromDocs :: Int -> Int -> [Document] -> TfIdf
 genTfIdfFromDocs m n d = genTfIdf $ genCorpus m n (mkCleanedDoc <$> d)
 
 getTfFromDoc :: FreqMap -> TfMap
-getTfFromDoc d = getTf d
+getTfFromDoc = getTf
 
 getIdfFromDoc :: TfIdf -> FreqMap -> TfMap
-getIdfFromDoc (TfIdf _ _ tfidf) d = getIdfForDoc freqMaps d
+getIdfFromDoc (TfIdf _ _ tfidf) = getIdfForDoc freqMaps
   where
     freqMaps = M.map (\(TfMap m) -> m) tfidf
 
@@ -172,7 +178,7 @@ cosineSimilarity (TfMap m1) (TfMap m2) =
   (sum . fmap snd . M.toList . M.intersectionWith (*) m1 $ m2) / totalSize
   where
     size = M.foldl' (+) 0.0
-    totalSize = (size m1) * (size m2)
+    totalSize = size m1 * size m2
 
 getSimilarities :: TfMap -> TfIdf -> Map Text Double
 getSimilarities phrase tfidf = M.map (cosineSimilarity phrase) (tfidfFreqs tfidf)
