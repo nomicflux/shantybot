@@ -72,8 +72,22 @@ singularize word
   | T.takeEnd 1 word == "s" = T.dropEnd 1 word
   | otherwise = word
 
+decontraction :: Text -> Text
+decontraction word
+  | T.takeEnd 2 word == "'s" = T.dropEnd 2 word <> " is"
+  | T.takeEnd 3 word == "'ll" = T.dropEnd 3 word <> " will"
+  | T.takeEnd 3 word == "'ve" = T.dropEnd 3 word <> " have"
+  | T.takeEnd 3 word == "'nt" = T.dropEnd 3 word <> " not"
+  | otherwise = word
+
+depunctuate :: Text -> Text
+depunctuate = T.filter (not . (`elem` punctuation))
+
+normalizeWord :: Text -> Text
+normalizeWord = singularize . depunctuate . decontraction . T.strip
+
 cleanText :: Text -> [Text]
-cleanText = filter (/= "") . (T.singularize . T.strip <$>) . T.words . T.toLower . T.filter (not . (`elem` punctuation))
+cleanText = filter (/= "") . (normalizeWord <$>) . T.words . T.toLower
 
 mkCleanedDoc :: Document -> CleanedDoc
 mkCleanedDoc Document{..} = CleanedDoc docName $ cleanText docText

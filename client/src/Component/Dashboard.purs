@@ -50,8 +50,8 @@ menuItem page =
 
 navbar :: forall m. H.ParentHTML Query ChildQuery Slot m
 navbar =
-  HH.nav [ HP.classes (HH.ClassName <$> ["pure-menu", "pure-menu-horizontal", "pure-u"]) ]
-         [ HH.ul [ HP.class_ $ HH.ClassName "pure-menu-list" ]
+  HH.nav [ HP.classes (HH.ClassName <$> ["pure-menu", "pure-menu-horizontal", "pure-u-1"]) ]
+         [ HH.ul [ HP.class_ $ HH.ClassName "pure-menu-list pure-u-1" ]
                  ( menuItem <$> pages )
          ]
 
