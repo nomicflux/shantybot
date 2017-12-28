@@ -4,45 +4,50 @@
 module TextMining.TfIdf where
 
 import qualified Data.Map.Strict as M
+import Data.Map.Strict (Map)
+import Data.Set (Set)
+import qualified Data.Set as S
 import Data.Text (Text)
 
 import TextMining.DocumentReader
 import TextMining.NGram
 import TextMining.Corpus
 
-newtype TfMap = TfMap (Map NGram Double)
+newtype ProbMap = ProbMap (Map NGram Double)
   deriving (Show, Eq)
 
-newtype TfIdf = TfIdf { tfidfFreqs :: Map Text TfMap }
+newtype TfIdf = TfIdf { tfidfFreqs :: Map Text ProbMap }
   deriving (Show, Eq)
 
-getTf :: FreqMap -> TfMap
-getTf (FreqMap freqs) = TfMap $ normalize freqs
+getTf :: CorpusItem -> ProbMap
+getTf item = ProbMap $ normalize freqs
   where
+    (FreqMap freqs) = corpusItemFreqs item
     total = fromIntegral $ M.foldl' (+) 0 freqs
     normalize = M.map ((/ total) . fromIntegral)
 
-getIdfForDoc :: Map Text (Map Text a) -> FreqMap -> TfMap
-getIdfForDoc freqMaps (FreqMap freqs) = TfMap $ M.mapWithKey getIdfWord freqs
+getIdf :: Corpus -> CorpusItem -> ProbMap
+getIdf refCorpus genCorpus =
+  ProbMap getTotal
   where
+    refNGrams :: Map Text (Set NGram)
+    refNGrams = ngramSets refCorpus
+
+    genNGrams :: [NGram]
+    genNGrams = S.toList $ M.foldl' (flip S.insert) S.empty $ ngramSets genCorpus
+
     numTexts :: Double
-    numTexts = fromIntegral $ length $ M.keys freqMaps
+    numTexts = fromIntegral . length . M.keys $ refNGrams
 
-    allKeys :: [Text]
-    allKeys = foldl (\acc m -> acc ++ M.keys m) [] freqMaps
+    getIdfWord :: Int -> Double
+    getIdfWord extant = numTexts / fromIntegral (1 + extant)
 
-    getTotal :: Text -> Int
-    getTotal word = foldl (\acc m -> acc + maybe 0 (const 1) (M.lookup word m)) 0 freqMaps
+    getTotal :: NGram -> Double
+    getTotal ngram =
+      M.foldl' (+) 0 $ M.map (\v -> if S.member ngram v then 1 else 0) refNGrams
 
-    getIdfWord :: Text -> Int -> Double
-    getIdfWord word _ =
-      let bottom = getTotal word
-      in numTexts / fromIntegral (1 + bottom)
-
-getIdf :: Corpus -> Map Text TfMap
-getIdf (Corpus _ _ docs) = M.map (getIdfForDoc freqMaps) docs
-  where
-    freqMaps = M.map (\(FreqMap m) -> m) docs
+    getProbMap :: Map NGram Double
+    getProbMap = M.fromList (\w -> (w, getTotal w)) genNGrams
 
 genTfIdf :: Corpus -> TfIdf
 genTfIdf corpus@(Corpus m n freqMaps) =

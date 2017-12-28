@@ -5,9 +5,13 @@ module TextMining.Corpus where
 
 import Control.Monad (foldM)
 import Control.Monad.Trans.Reader (ask)
+import Data.List (foldl')
 import Data.Map (Map)
 import qualified Data.Map as M
+import Data.Maybe (maybe)
 import Data.Monoid ((<>), mempty, mappend)
+import Data.Set (Set)
+import qualified Data.Set as S
 import Data.Text (Text)
 
 import TextMining.Document
@@ -17,6 +21,10 @@ import TextMining.DocumentReader
 
 newtype FreqMap = FreqMap (Map NGram Int)
   deriving (Show, Eq)
+
+instance Monoid FreqMap where
+  mempty = FreqMap M.empty
+  mappend (FreqMap m1) (FreqMap m2) = FreqMap $ M.unionWith (+) m1 m2
 
 data CorpusItem = CorpusItem { corpusItemName :: Text
                              , corpusItemText :: [Line]
@@ -31,6 +39,13 @@ newtype Corpus = Corpus {  corpusItems :: Map Text [CorpusItem] }
 instance Monoid Corpus where
   mempty = Corpus M.empty
   mappend (Corpus m1) (Corpus m2) = Corpus $ M.unionWith (++) m1 m2
+
+getFreqsForName :: Corpus -> Text -> FreqMap
+getFreqsForName corpus =
+  maybe mempty (foldl' (<>) mempty) . ((corpusItemFreqs <$>) . <$>) . (flip M.lookup) corpus
+
+ngramSets :: Corpus -> Map Text (Set NGram)
+ngramSets = M.map (S.fromList (>>= corpusItemNGrams))
 
 corpusFromItem :: CorpusItem -> Corpus
 corpusFromItem c@CorpusItem{..} =

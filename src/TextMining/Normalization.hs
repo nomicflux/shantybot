@@ -20,11 +20,16 @@ singularize word
 
 decontraction :: Text -> Text
 decontraction word
-  | T.takeEnd 2 word == "'s" = T.dropEnd 2 word <> " is"
-  | T.takeEnd 3 word == "'ll" = T.dropEnd 3 word <> " will"
-  | T.takeEnd 3 word == "'ve" = T.dropEnd 3 word <> " have"
-  | T.takeEnd 3 word == "'nt" = T.dropEnd 3 word <> " not"
+  | last2 == "'s" = T.dropEnd 2 word <> " is"
+  | last2 == "'m" = T.dropEnd 2 word <> " am"
+  | last3 == "'ll" = T.dropEnd 3 word <> " will"
+  | last3 == "'ve" = T.dropEnd 3 word <> " have"
+  | last3 == "'nt" = T.dropEnd 3 word <> " not"
+  | last3 == "'re" = T.dropEnd 3 word <> " are"
   | otherwise = word
+  where
+    last2 = T.takeEnd 2 word
+    last3 = T.takeEnd 3 word
 
 depunctuate :: Text -> Text
 depunctuate = T.filter (not . (`elem` punctuation))
