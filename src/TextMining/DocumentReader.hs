@@ -1,0 +1,15 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StrictData #-}
+
+module TextMining.Document where
+
+import Control.Monad.Trans.Reader (ReaderT)
+import Data.Set (Set)
+import Data.Text (Text)
+
+data DocumentSettings = DocumentSettings { minGrams :: Int
+                                         , maxGrams :: Int
+                                         , stopWords :: Set Text
+                                         }
+
+type DocumentReader = ReaderT DocumentSettings
