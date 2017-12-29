@@ -5,12 +5,10 @@
 module Song.Song where
 
 import Data.Aeson (FromJSON, parseJSON, (.:), withObject, ToJSON, toJSON, object, (.=))
-import Data.List (foldl')
-import Data.Map (Map)
-import qualified Data.Map as M
 import Data.Text (Text)
+import qualified Data.Text as T
 
-import TextMining.Document (Document(..), mkDocument, Line(..))
+import TextMining.Document (Document(..), Line(..), ToDocument(..))
 
 newtype Verse = Verse { verseLines :: [Line] }
 
@@ -26,6 +24,9 @@ data Song = Song { songTitle :: Text
                  , songVerses :: [Verse]
                  }
 
+chorusToText :: Song -> Text
+chorusToText = T.intercalate "\n" . (lineText <$>) . songChorus
+
 instance FromJSON Song where
   parseJSON = withObject "SongObject" $ \o -> do
     songTitle <- o .: "title"
@@ -39,20 +40,10 @@ instance ToJSON Song where
                            , "verses" .= songVerses
                            ]
 
-newtype SongDictionary = SongDictionary (Map Text [Song])
-
-mkDictionary :: [Song] -> SongDictionary
-mkDictionary = foldl' addToDictionary (SongDictionary M.empty)
-
-addToDictionary :: SongDictionary -> Song -> SongDictionary
-addToDictionary (SongDictionary songDict) song =
-  case M.lookup title songDict of
-    Just current -> SongDictionary $ M.insert title (song : current) songDict
-    Nothing -> SongDictionary $ M.insert title [song] songDict
-  where
-    title = songTitle song
-
 songToDocument :: Song -> Document
 songToDocument Song{..} = Document songTitle songBody
   where
     songBody = songChorus ++ (songVerses >>= verseLines)
+
+instance ToDocument Song where
+  toDocument = songToDocument

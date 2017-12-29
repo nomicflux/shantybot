@@ -3,7 +3,6 @@
 
 module TextMining.TfIdf where
 
-import Control.Monad.Trans.Reader (ask)
 import Data.List (foldl')
 import qualified Data.Map.Strict as M
 import Data.Map.Strict (Map)
@@ -11,7 +10,7 @@ import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Text (Text)
 
-import TextMining.Document (mkDocument)
+import TextMining.Document (ToDocument(..))
 import TextMining.DocumentReader
 import TextMining.NGram
 import TextMining.Corpus
@@ -24,43 +23,39 @@ data TfIdf = TfIdf { tfs :: Map Text ProbMap
                    }
   deriving (Show, Eq)
 
-getTf :: [CorpusItem] -> ProbMap
+getTf :: [CorpusItem a] -> ProbMap
 getTf items = ProbMap $ normalize freqs
   where
     freqs = foldl' (\acc v -> M.unionWith (+) acc . getFreqs . corpusItemFreqs $ v) M.empty items
     total = fromIntegral $ M.foldl' (+) 0 freqs
     normalize = M.map ((/ total) . fromIntegral)
 
-getIdf :: Corpus -> ProbMap
-getIdf refCorpus =
-  ProbMap getProbMap
+getIdf :: Corpus a -> ProbMap
+getIdf refCorpus = ProbMap genProbMap
   where
     refNGrams :: Map Text (Set NGram)
     refNGrams = ngramSets refCorpus
 
-    genNGrams :: [NGram]
-    genNGrams = S.toList $ M.foldl' (flip S.union) S.empty refNGrams
+    genGrams :: [NGram]
+    genGrams = S.toList $ M.foldl' (flip S.union) S.empty refNGrams
 
     numTexts :: Double
     numTexts = fromIntegral . length . M.keys $ refNGrams
-
-    getIdfWord :: Int -> Double
-    getIdfWord extant = numTexts / fromIntegral (1 + extant)
 
     getTotal :: NGram -> Double
     getTotal ngram =
       M.foldl' (+) 0 $ M.map (\v -> if S.member ngram v then 1 else 0) refNGrams
 
-    getProbMap :: Map NGram Double
-    getProbMap = M.fromList $ (\w -> (w, getTotal w)) <$> genNGrams
+    genProbMap :: Map NGram Double
+    genProbMap = M.fromList $ (\w -> (w, getTotal w / numTexts)) <$> genGrams
 
-genTfIdf :: Corpus -> TfIdf
-genTfIdf corpus = TfIdf tfs idf
+genTfIdf :: Corpus a -> TfIdf
+genTfIdf corpus = TfIdf tfs' idf'
   where
-    tfs :: Map Text ProbMap
-    tfs = M.map getTf (corpusItems corpus)
-    idf :: ProbMap
-    idf = getIdf corpus
+    tfs' :: Map Text ProbMap
+    tfs' = M.map getTf (corpusItems corpus)
+    idf' :: ProbMap
+    idf' = getIdf corpus
 
 cosineSimilarity :: ProbMap -> ProbMap -> Double
 cosineSimilarity (ProbMap m1) (ProbMap m2) =
@@ -72,7 +67,7 @@ getSimilarities phrase tfidf = M.map (cosineSimilarity idfPhrase) (tfs tfidf)
     idfPhrase :: ProbMap
     idfPhrase = ProbMap $ M.intersectionWith (\i w -> w * i * i) (getProbMap $ idf tfidf) (getProbMap phrase)
 
-bestMatch :: CorpusItem -> TfIdf -> Maybe Text
+bestMatch :: CorpusItem a -> TfIdf -> Maybe Text
 bestMatch phrase tfidf = fst $ getMatch (M.toList matches)
   where
     matches = getSimilarities (getTf [phrase]) tfidf
@@ -83,6 +78,10 @@ bestMatch phrase tfidf = fst $ getMatch (M.toList matches)
 
 matchPhrase :: Monad m => Text -> TfIdf -> DocumentReader m (Maybe Text)
 matchPhrase phrase tfidf = do
-  settings <- ask
-  corpusItem <- mkCorpusItem (mkDocument "phrase" phrase)
+  corpusItem <- mkCorpusItem (toDocument phrase)
   return $ bestMatch corpusItem tfidf
+
+matchInCorpus :: (Monad m, ToDocument a) => Corpus a -> Text -> TfIdf -> DocumentReader m [a]
+matchInCorpus corpus phrase tfidf = do
+  corpusItem <- mkCorpusItem (toDocument phrase)
+  return $ maybe [] (structuredDocsFromCorpus corpus) (bestMatch corpusItem tfidf)

@@ -8,19 +8,16 @@ import System.Directory
 import qualified Control.Logging as L
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.UUID (toString)
-import qualified Data.Map as M
 import Data.Maybe (catMaybes)
 import Data.Monoid ((<>))
-import Data.Text (pack, Text, replace, unpack)
-import Data.Text.IO (readFile, writeFile)
+import Data.Text (pack)
 import Data.Yaml (encodeFile, decodeFileEither, FromJSON, ToJSON)
 import System.Random (randomIO)
 
-import Song.Song
-import TextMining.Document (mkDocument, Document(..))
+import TextMining.Document (ToDocument(..))
 import TextMining.DocumentReader (DocumentReader)
 import TextMining.Corpus (Corpus, genCorpus)
-import TextMining.TfIdf (TfIdf, genTfIdf, matchPhrase)
+import TextMining.TfIdf (TfIdf, genTfIdf)
 
 songDirectory :: FilePath
 songDirectory = "data/songs"
@@ -46,10 +43,9 @@ getFiles dir = do
   files <- liftIO $ listDirectory dir
   catMaybes <$> mapM (fileToDoc dir) files
 
-getTfIdfFromDir :: MonadIO m => FilePath -> DocumentReader m (SongDictionary, Corpus, TfIdf)
+getTfIdfFromDir :: (MonadIO m, FromJSON a, ToDocument a) => FilePath -> DocumentReader m (Corpus a, TfIdf)
 getTfIdfFromDir dir = do
-  songs <- liftIO $ getFiles dir
-  let docs = songToDocument <$> songs
+  docs <- liftIO $ getFiles dir
   corpus <- genCorpus docs
   let tfidf = genTfIdf corpus
-  return (mkDictionary songs, corpus, tfidf)
+  return (corpus, tfidf)

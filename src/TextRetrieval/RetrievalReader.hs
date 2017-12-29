@@ -4,60 +4,50 @@
 module TextRetrieval.RetrievalReader where
 
 import Control.Monad.Trans (lift)
-import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Trans.Reader (ReaderT, runReaderT, runReader, ask)
 import Control.Concurrent.STM (TVar)
 import qualified Control.Concurrent.STM as STM
-import Data.Map (Map)
-import qualified Data.Map as M
-import Data.Monoid ((<>))
-import Data.Text (Text)
-import qualified Data.Text as T
-import qualified Data.Text.IO as TIO
+import Data.Yaml (ToJSON)
 
-import Servant (ServantErr, Handler, (:~>)(..))
+import Servant (Handler, (:~>)(..))
 
-import Song.Song (Song, songToDocument)
-import TextMining.Document (Document, mkDocument)
+import TextMining.Document (ToDocument(..))
 import TextMining.DocumentReader (DocumentReader, DocumentSettings)
 import TextMining.Corpus (Corpus, addToCorpus)
 import TextMining.TfIdf (TfIdf, genTfIdf)
-import TextRetrieval.RetrievalService (songDirectory, writeNewDoc)
+import TextRetrieval.RetrievalService (writeNewDoc)
 
-type AppM = DocumentReader (ReaderT DocumentRetrieval IO)
+type AppM a = DocumentReader (ReaderT (DocumentRetrieval a) IO)
 
-getDocSettings :: AppM DocumentSettings
+getDocSettings :: ToDocument a => AppM a DocumentSettings
 getDocSettings = ask
 
-getDocVars :: AppM DocumentRetrieval
+getDocVars :: ToDocument a => AppM a (DocumentRetrieval a)
 getDocVars = lift ask
 
-readerTToHandler :: DocumentSettings -> DocumentRetrieval -> AppM :~> Handler
+readerTToHandler :: ToDocument a => DocumentSettings -> DocumentRetrieval a -> AppM a :~> Handler
 readerTToHandler docCfg cfg = NT (\r -> liftIO $ runReaderT (runReaderT r docCfg) cfg)
 
-data DocumentRetrieval = DocumentRetrieval { rcDocs :: TVar Corpus
-                                           , rcTfidf :: TVar TfIdf
-                                           }
+data DocumentRetrieval a = DocumentRetrieval { rcDocs :: TVar (Corpus a)
+                                             , rcTfidf :: TVar TfIdf
+                                             }
 
-mkConfig :: MonadIO m => Corpus -> TfIdf -> m DocumentRetrieval
+mkConfig :: (MonadIO m, ToDocument a) => Corpus a -> TfIdf -> m (DocumentRetrieval a)
 mkConfig docs' tfidf' = do
   docs <- liftIO $ STM.newTVarIO docs'
   tfidf <- liftIO $ STM.newTVarIO tfidf'
   return $ DocumentRetrieval docs tfidf
 
-updateDocs :: MonadIO m => Song -> DocumentRetrieval -> DocumentReader m ()
-updateDocs song docState = do
-  let thisDoc = songToDocument song
+updateDocs :: (MonadIO m, ToJSON a, ToDocument a) => a -> DocumentRetrieval a -> DocumentReader m ()
+updateDocs thisDoc docState = do
   docSettings <- ask
   let docVar = rcDocs docState
       tfidfVar = rcTfidf docState
   liftIO $ STM.atomically $ do
     oldCorpus <- STM.readTVar docVar
-    let
-      newCorpus :: Corpus
-      newCorpus = runReader (addToCorpus oldCorpus thisDoc) docSettings
+    let newCorpus = runReader (addToCorpus oldCorpus thisDoc) docSettings
     STM.writeTVar docVar newCorpus
     let newTfidf = genTfIdf newCorpus
     STM.writeTVar tfidfVar $ newTfidf
-  liftIO $ writeNewDoc song
+  liftIO $ writeNewDoc thisDoc

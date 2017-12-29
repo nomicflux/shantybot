@@ -5,33 +5,24 @@
 module TextRetrieval.RetrievalEndpoint where
 
 import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Trans.Reader (ask)
 import qualified Control.Concurrent.STM as STM
 import qualified Control.Logging as L
-import Data.Aeson (FromJSON, parseJSON, withObject, (.:))
-import Data.Map (Map)
-import qualified Data.Map as M
-import Data.Maybe (fromMaybe)
-import Data.Monoid ((<>))
+import Data.Aeson (FromJSON, parseJSON, withObject, (.:), ToJSON)
 import Data.Text (Text)
-import qualified Data.Text as T
 
 import Servant
 import Servant.Server (enter)
-import Servant.API
 
-import Song.Song
-import TextMining.Document (Document, Line(..), mkDocument)
+import TextMining.Document (ToDocument(..))
 import TextMining.DocumentReader (DocumentSettings)
-import TextMining.Corpus (documentsFromCorpus, Corpus(..))
-import TextMining.TfIdf (matchPhrase)
+import TextMining.Corpus (structuredDocsFromCorpus, getTitles)
+import TextMining.TfIdf (matchInCorpus)
 import TextRetrieval.RetrievalReader
-import TextRetrieval.RetrievalService
 
-type DocumentAPI = "gettitles" :> Get '[JSON] [Text]
-              :<|> "get" :> Capture "name" Text :> Get '[JSON] [Document]
-              :<|> "add" :> ReqBody '[JSON] Song :> Post '[JSON] Bool
-              :<|> "match" :> ReqBody '[JSON] TextWrapper :> Post '[JSON] [Document]
+type DocumentAPI a = "gettitles" :> Get '[JSON] [Text]
+                     :<|> "get" :> Capture "name" Text :> Get '[JSON] [a]
+                     :<|> "add" :> ReqBody '[JSON] a :> Post '[JSON] Bool
+                     :<|> "match" :> ReqBody '[JSON] TextWrapper :> Post '[JSON] [a]
 
 newtype TextWrapper = TextWrapper Text
 
@@ -39,43 +30,41 @@ instance FromJSON TextWrapper where
   parseJSON = withObject "TextWrapperObject" $ \obj ->
     TextWrapper <$> obj .: "text"
 
-documentAPI :: Proxy DocumentAPI
+documentAPI :: (ToDocument a, FromJSON a, ToJSON a) => Proxy (DocumentAPI a)
 documentAPI = Proxy
 
-documentServer :: DocumentSettings -> DocumentRetrieval -> Server DocumentAPI
+documentServer :: (ToDocument a, FromJSON a, ToJSON a) => DocumentSettings -> DocumentRetrieval a -> Server (DocumentAPI a)
 documentServer docCfg cfg = enter (readerTToHandler docCfg cfg) documentServerT
 
-documentServerT :: ServerT DocumentAPI AppM
+documentServerT :: (ToDocument a, FromJSON a, ToJSON a) => ServerT (DocumentAPI a) (AppM a)
 documentServerT = getAllTitles
              :<|> getDoc
              :<|> addSong
              :<|> matchToDocs
 
-getAllTitles :: AppM [Text]
+getAllTitles :: (ToDocument a, FromJSON a, ToJSON a) => AppM a [Text]
 getAllTitles = do
   docVar <- rcDocs <$> getDocVars
-  M.keys . corpusItems <$> (liftIO . STM.readTVarIO $ docVar)
+  getTitles <$> (liftIO . STM.readTVarIO $ docVar)
 
-getDoc :: Text -> AppM [Document]
+getDoc :: (ToDocument a, FromJSON a, ToJSON a) => Text -> AppM a [a]
 getDoc name = do
   docVar <- rcDocs <$> getDocVars
   corpus <- liftIO . STM.readTVarIO $ docVar
   --L.debug' $ "Corpus" <> T.pack (show corpus)
-  return $ documentsFromCorpus corpus name
+  return $ structuredDocsFromCorpus corpus name
 
-addSong :: Song -> AppM Bool
+addSong :: (ToDocument a, FromJSON a, ToJSON a) => a -> AppM a Bool
 addSong song = do
   docVar <- getDocVars
   updateDocs song docVar
   return True
 
-matchToDocs :: TextWrapper -> AppM [Document]
+matchToDocs :: (ToDocument a, FromJSON a, ToJSON a) => TextWrapper -> AppM a [a]
 matchToDocs (TextWrapper phrase) = do
   liftIO $ L.debug' phrase
   tfidfVar <- rcTfidf <$> getDocVars
   docsVar <- rcDocs <$> getDocVars
   tfidf <- liftIO $ STM.readTVarIO tfidfVar
   corpus <- liftIO $ STM.readTVarIO docsVar
-  name <- matchPhrase phrase $ tfidf
-  let docs = maybe [] (documentsFromCorpus corpus) name
-  return docs
+  matchInCorpus corpus phrase tfidf

@@ -4,13 +4,8 @@
 
 module TextMining.Document where
 
-import Control.Monad (msum)
 import Data.Aeson (FromJSON, parseJSON, withObject, (.:), ToJSON, toJSON, object, (.=))
-import Data.List (tails, length, foldl', sortOn)
 import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as M
-import Data.Maybe (mapMaybe, fromMaybe)
-import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
 
@@ -44,3 +39,16 @@ type Documents = Map Text Document
 
 mkDocument :: Text -> Text -> Document
 mkDocument name text = Document name (Line <$> T.splitOn "\n" text)
+
+class ToDocument a where
+  toDocument :: a -> Document
+  namedDocument :: Text -> a -> Document
+  namedDocument title a = (toDocument a) { docName = title }
+  toTextBody :: a -> Text
+  toTextBody = T.intercalate "\n" . (lineText <$>) . docText . toDocument
+
+instance ToDocument Document where
+  toDocument = id
+
+instance ToDocument Text where
+  toDocument = mkDocument ""
