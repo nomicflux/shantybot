@@ -15,6 +15,7 @@ punctuation = ",.?!-:;\"\'"
 singularize :: Text -> Text
 singularize word
   | T.takeEnd 3 word == "ies" = T.dropEnd 3 word <> "y"
+  | T.takeEnd 3 word == "ses" = T.dropEnd 2 word
   | T.takeEnd 1 word == "s" = T.dropEnd 1 word
   | otherwise = word
 

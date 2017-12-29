@@ -1,9 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StrictData #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module TextMining.Corpus where
 
-import Control.Monad (foldM)
+import Control.Monad (foldM, mapM, join)
 import Control.Monad.Trans.Reader (ask)
 import Data.List (foldl')
 import Data.Map (Map)
@@ -15,7 +16,7 @@ import qualified Data.Set as S
 import Data.Text (Text)
 
 import TextMining.Document
-import TextMining.NGrams
+import TextMining.NGram
 import TextMining.Normalization
 import TextMining.DocumentReader
 
@@ -33,37 +34,38 @@ data CorpusItem = CorpusItem { corpusItemName :: Text
                              }
   deriving (Show, Eq)
 
-newtype Corpus = Corpus {  corpusItems :: Map Text [CorpusItem] }
+newtype Corpus = Corpus { corpusItems :: Map Text [CorpusItem] }
   deriving (Show, Eq)
 
 instance Monoid Corpus where
   mempty = Corpus M.empty
   mappend (Corpus m1) (Corpus m2) = Corpus $ M.unionWith (++) m1 m2
 
-getFreqsForName :: Corpus -> Text -> FreqMap
-getFreqsForName corpus =
-  maybe mempty (foldl' (<>) mempty) . ((corpusItemFreqs <$>) . <$>) . (flip M.lookup) corpus
+--getFreqsForName :: Corpus -> Text -> FreqMap
+--getFreqsForName corpus =
+  --maybe mempty (foldl' (<>) mempty) . ((corpusItemFreqs <$>) . <$>) . (flip M.lookup) corpus
 
 ngramSets :: Corpus -> Map Text (Set NGram)
-ngramSets = M.map (S.fromList (>>= corpusItemNGrams))
+ngramSets Corpus{..} = M.map (S.fromList . join . map corpusItemNGrams) corpusItems
 
 corpusFromItem :: CorpusItem -> Corpus
 corpusFromItem c@CorpusItem{..} =
-  Corpus $ Map.fromList [(corpusItemName, c)]
+  Corpus $ M.fromList [(corpusItemName, [c])]
 
 genFreqMap :: [NGram] -> FreqMap
 genFreqMap doc =
-  FreqMap $ foldl' (\acc nGram -> M.insertWith (+) nGram 1 acc) M.empty nmGrams
+  FreqMap $ foldl' (\acc nGram -> M.insertWith (+) nGram 1 acc) M.empty doc
 
 mkCorpusItem :: (Monad m) => Document -> DocumentReader m CorpusItem
-mkCorpusItem Document{..} = ask >>= $ \settings ->
-  let newText = genNMGrams minGrams maxGrams . cleanText $ docText
-      freqs = genFreqMap newText
-  return $ CorpusItem docName docText newText freqs
+mkCorpusItem Document{..} = ask >>= (\settings ->
+  let
+    newText = genNMGrams (minGrams settings) (maxGrams settings) . cleanText $ docText
+    freqs = genFreqMap newText
+  in return $ CorpusItem docName docText newText freqs)
 
 addToCorpus :: (Monad m) => Corpus -> Document -> DocumentReader m Corpus
-addToCorpus corpus doc = mkCorpusItem >>= $ \item ->
-  return $ corpus <> (corpusFromItem item)
+addToCorpus corpus doc = mkCorpusItem doc >>= (\item ->
+  return $ corpus <> (corpusFromItem item))
 
 genCorpus :: (Monad m) => [Document] -> DocumentReader m Corpus
 genCorpus = foldM addToCorpus mempty

@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b527a3ac6d3b1508ec18186b06fc1dfc950d90b6eb20c2767b250982d4680647
+-- hash: 93408be7df80a46d558339f6c41d2a36c581d1f0b8b5cca3de8e1a313885c66e
 
 name:           ShantyBot
 version:        0.1.0.0
@@ -63,10 +63,15 @@ library
     , yaml
   exposed-modules:
       ShantyApp
+      TextMining.Corpus
       TextMining.Document
+      TextMining.DocumentReader
+      TextMining.NGram
+      TextMining.Normalization
       TextMining.RetrievalEndpoint
       TextMining.RetrievalReader
       TextMining.RetrievalService
+      TextMining.TfIdf
       Twitter.Internal.AccessInfo
       Twitter.OAuth
       Twitter.Streaming

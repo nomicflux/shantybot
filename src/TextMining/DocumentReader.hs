@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StrictData #-}
 
-module TextMining.Document where
+module TextMining.DocumentReader where
 
 import Control.Monad.Trans.Reader (ReaderT)
 import Data.Set (Set)

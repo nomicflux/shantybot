@@ -11,7 +11,9 @@ import Data.Monoid ((<>))
 import Data.Text (pack, Text, replace, unpack)
 import Data.Text.IO (readFile, writeFile)
 
-import TextMining.Document
+import TextMining.Document (mkDocument, Document)
+import TextMining.DocumentReader (DocumentReader)
+import TextMining.TfIdf (matchPhrase)
 
 songDirectory :: FilePath
 songDirectory = "data/songs"

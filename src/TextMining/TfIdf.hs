@@ -16,19 +16,21 @@ import TextMining.Corpus
 newtype ProbMap = ProbMap (Map NGram Double)
   deriving (Show, Eq)
 
-newtype TfIdf = TfIdf { tfidfFreqs :: Map Text ProbMap }
+data TfIdf = TfIdf { tfs :: Map Text ProbMap
+                   , idf :: ProbMap
+                   }
   deriving (Show, Eq)
 
-getTf :: CorpusItem -> ProbMap
-getTf item = ProbMap $ normalize freqs
+getTf :: [CorpusItem] -> ProbMap
+getTf items = ProbMap $ normalize freqs
   where
-    (FreqMap freqs) = corpusItemFreqs item
+    freqs = M.foldl' (M.unionWith (+) . corpusItemFreqs) M.empty items
     total = fromIntegral $ M.foldl' (+) 0 freqs
     normalize = M.map ((/ total) . fromIntegral)
 
-getIdf :: Corpus -> CorpusItem -> ProbMap
-getIdf refCorpus genCorpus =
-  ProbMap getTotal
+getIdf :: Corpus -> ProbMap
+getIdf refCorpus =
+  ProbMap getProbMap
   where
     refNGrams :: Map Text (Set NGram)
     refNGrams = ngramSets refCorpus
@@ -50,52 +52,23 @@ getIdf refCorpus genCorpus =
     getProbMap = M.fromList (\w -> (w, getTotal w)) genNGrams
 
 genTfIdf :: Corpus -> TfIdf
-genTfIdf corpus@(Corpus m n freqMaps) =
-  TfIdf m n $ M.intersectionWith mergeTfMap tfs idf
+genTfIdf corpus = TfIdf tfs idf
   where
-    tfs :: Map Text TfMap
-    tfs = M.map getTf freqMaps
-    idf :: Map Text TfMap
+    tfs :: Map Text ProbMap
+    tfs = M.map getTf (corpusItems corpus)
+    idf :: ProbMap
     idf = getIdf corpus
-    mergeTfMap :: TfMap -> TfMap -> TfMap
-    mergeTfMap (TfMap m1) (TfMap m2) = TfMap $ M.intersectionWith (*) m1 m2
 
-genTfIdfFromDocs :: Int -> Int -> [Document] -> TfIdf
-genTfIdfFromDocs m n d = genTfIdf $ genCorpus m n (mkCleanedDoc <$> d)
+cosineSimilarity :: ProbMap -> ProbMap -> Double
+cosineSimilarity (ProbMap m1) (ProbMap m2) =
+  (sum . fmap snd . M.toList . M.intersectionWith (*) m1 $ m2)
 
-getTfFromDoc :: FreqMap -> TfMap
-getTfFromDoc = getTf
-
-getIdfFromDoc :: TfIdf -> FreqMap -> TfMap
-getIdfFromDoc (TfIdf _ _ tfidf) = getIdfForDoc freqMaps
+getSimilarities :: ProbMap -> TfIdf -> Map Text Double
+getSimilarities phrase tfidf = M.map (cosineSimilarity idfPhrase) (tfs tfidf)
   where
-    freqMaps = M.map (\(TfMap m) -> m) tfidf
+    idfPhrase = M.intersectionWith (\i w -> w * i * i) (idf tfdif) phrase
 
-getTfIdfFromCDoc :: Int -> Int -> TfIdf -> CleanedDoc -> TfMap
-getTfIdfFromCDoc m n tfidf doc = TfMap $ M.intersectionWith (*) tf idf
-  where
-    freqMap = genFreqMap m n doc
-    (TfMap tf) = getTfFromDoc freqMap
-    (TfMap idf) = getIdfFromDoc tfidf freqMap
-
-getTfIdfFromDoc :: Int -> Int -> TfIdf -> Document -> TfMap
-getTfIdfFromDoc m n tfidf doc = TfMap $ M.intersectionWith (*) tf idf
-  where
-    freqMap = genFreqMap m n $ mkCleanedDoc doc
-    (TfMap tf) = getTfFromDoc freqMap
-    (TfMap idf) = getIdfFromDoc tfidf freqMap
-
-cosineSimilarity :: TfMap -> TfMap -> Double
-cosineSimilarity (TfMap m1) (TfMap m2) =
-  (sum . fmap snd . M.toList . M.intersectionWith (*) m1 $ m2) / totalSize
-  where
-    size = M.foldl' (+) 0.0
-    totalSize = size m1 * size m2
-
-getSimilarities :: TfMap -> TfIdf -> Map Text Double
-getSimilarities phrase tfidf = M.map (cosineSimilarity phrase) (tfidfFreqs tfidf)
-
-bestMatch :: TfMap -> TfIdf -> Maybe Text
+bestMatch :: CorpusItem -> TfIdf -> Maybe Text
 bestMatch phrase tfidf = fst $ getMatch (M.toList matches)
   where
     matches = getSimilarities phrase tfidf
@@ -104,10 +77,8 @@ bestMatch phrase tfidf = fst $ getMatch (M.toList matches)
       foldl (\acc@(_, accV) (k, v) ->
                 if v > accV then (Just k, v) else acc) (Nothing, 0.0)
 
-phraseVals :: Text -> TfIdf -> [(Text, Double)]
-phraseVals phrase t@(TfIdf m n _) =
-  sortOn (negate . snd) $ M.toList $ getSimilarities (getTfIdfFromCDoc m n t $ mkCleanedDocFromText "" phrase) t
-
-matchPhrase :: Text -> TfIdf -> Maybe Text
-matchPhrase phrase t@(TfIdf m n _) =
-  bestMatch (getTfIdfFromCDoc m n t $ mkCleanedDocFromText "" phrase) t
+matchPhrase :: Monad m => Text -> DocumentReader m (Maybe Text)
+matchPhrase phrase tfidf = do
+  settings <- ask
+  corpusItem <- mkCorpusItem (mkDocument "phrase" phrase)
+  return $ bestMatch corpusItem tfidf

@@ -28,5 +28,5 @@ mkNGram n doc
 genNGrams :: [NGram] -> Int -> [NGram]
 genNGrams doc n = mapMaybe (mkNGram n) (take n <$> tails doc)
 
-genNMGrams :: [NGram] -> Int -> Int -> [NGram]
-genNMGrams doc minGrams maxGrams = msum . map (genNGrams doc) $ [minGrams .. maxGrams]
+genNMGrams :: Int -> Int -> [NGram] -> [NGram]
+genNMGrams minGrams maxGrams doc = msum . map (genNGrams doc) $ [minGrams .. maxGrams]
