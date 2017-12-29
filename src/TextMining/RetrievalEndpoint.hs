@@ -19,62 +19,56 @@ import Servant
 import Servant.Server (enter)
 import Servant.API
 
-import TextMining.Document
+import TextMining.Document (Document, Line(..), mkDocument)
+import TextMining.DocumentReader (DocumentSettings)
+import TextMining.Corpus (documentsFromCorpus, Corpus(..))
+import TextMining.TfIdf (matchPhrase)
 import TextMining.RetrievalReader
 import TextMining.RetrievalService
 
 type DocumentAPI = "gettitles" :> Get '[JSON] [Text]
-              :<|> "getsongs" :> Get '[JSON] Documents
-              :<|> "get" :> Capture "name" Text :> Get '[JSON] (Maybe Document)
-              :<|> "add" :> Capture "name" Text :> ReqBody '[JSON] Phrase :> Post '[JSON] Bool
-              -- :<|> "match" :> Capture "phrase" Text :> Get '[JSON] (Maybe Document)
-              :<|> "match" :> ReqBody '[JSON] Phrase :> Post '[JSON] (Maybe Document)
+              :<|> "get" :> Capture "name" Text :> Get '[JSON] [Document]
+              :<|> "add" :> Capture "name" Text :> ReqBody '[JSON] Text :> Post '[JSON] Bool
+              :<|> "match" :> ReqBody '[JSON] Line :> Post '[JSON] [Document]
 
 documentAPI :: Proxy DocumentAPI
 documentAPI = Proxy
 
-documentServer :: DocumentRetrieval -> Server DocumentAPI
-documentServer cfg = enter (readerTToHandler cfg) documentServerT
+documentServer :: DocumentSettings -> DocumentRetrieval -> Server DocumentAPI
+documentServer docCfg cfg = enter (readerTToHandler docCfg cfg) documentServerT
 
 documentServerT :: ServerT DocumentAPI AppM
 documentServerT = getAllTitles
-             :<|> getAllDocs
              :<|> getDoc
              :<|> addDoc
              :<|> matchToDocs
 
 getAllTitles :: AppM [Text]
 getAllTitles = do
-  docVar <- rcDocs <$> ask
-  M.keys <$> (liftIO . STM.readTVarIO $ docVar)
+  docVar <- rcDocs <$> getDocVars
+  M.keys . corpusItems <$> (liftIO . STM.readTVarIO $ docVar)
 
-getAllDocs :: AppM Documents
-getAllDocs = do
-  docVar <- rcDocs <$> ask
-  liftIO . STM.readTVarIO $ docVar
-
-getDoc :: Text -> AppM (Maybe Document)
+getDoc :: Text -> AppM [Document]
 getDoc name = do
-  docVar <- rcDocs <$> ask
-  docMap <- liftIO . STM.readTVarIO $ docVar
-  return $ M.lookup name docMap
+  docVar <- rcDocs <$> getDocVars
+  corpus <- liftIO . STM.readTVarIO $ docVar
+  return $ documentsFromCorpus corpus name
 
-addDoc :: Text -> Phrase -> AppM Bool
-addDoc name (Phrase text) = do
-  docVar <- ask
+addDoc :: Text -> Text -> AppM Bool
+addDoc name text = do
+  let doc = mkDocument name text
+  docVar <- getDocVars
   L.debug' $ "Adding " <> name <> " with text " <> text
-  updateDocs name text docVar
+  updateDocs doc docVar
   return True
 
-matchToDocs :: Phrase -> AppM (Maybe Document)
-matchToDocs (Phrase phrase) = do
---matchToDocs :: Text -> AppM (Maybe Document)
---matchToDocs phrase = do
+matchToDocs :: Line -> AppM [Document]
+matchToDocs (Line phrase) = do
   liftIO $ L.debug' phrase
-  tfidfVar <- rcTfidf <$> ask
-  docsVar <- rcDocs <$> ask
+  tfidfVar <- rcTfidf <$> getDocVars
+  docsVar <- rcDocs <$> getDocVars
   tfidf <- liftIO $ STM.readTVarIO tfidfVar
-  docs <- liftIO $ STM.readTVarIO docsVar
-  let name = matchPhrase phrase $ tfidf
-      doc = name >>= (flip M.lookup) docs
-  return doc
+  corpus <- liftIO $ STM.readTVarIO docsVar
+  name <- matchPhrase phrase $ tfidf
+  let docs = maybe [] (documentsFromCorpus corpus) name
+  return docs

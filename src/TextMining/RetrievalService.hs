@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+
 module TextMining.RetrievalService where
 
 import Prelude hiding (readFile, writeFile)
@@ -6,38 +7,49 @@ import Prelude hiding (readFile, writeFile)
 import System.Directory
 import qualified Control.Logging as L
 import Control.Monad.IO.Class (MonadIO, liftIO)
+import Data.UUID (toString)
 import qualified Data.Map as M
+import Data.Maybe (catMaybes)
 import Data.Monoid ((<>))
 import Data.Text (pack, Text, replace, unpack)
 import Data.Text.IO (readFile, writeFile)
+import Data.Yaml (encodeFile, decodeFileEither)
+import System.Random (randomIO)
 
-import TextMining.Document (mkDocument, Document)
+import TextMining.Document (mkDocument, Document(..))
 import TextMining.DocumentReader (DocumentReader)
-import TextMining.TfIdf (matchPhrase)
+import TextMining.Corpus (Corpus, genCorpus)
+import TextMining.TfIdf (TfIdf, genTfIdf, matchPhrase)
 
 songDirectory :: FilePath
 songDirectory = "data/songs"
 
-writeNewDoc :: MonadIO m => Text -> Text -> m ()
-writeNewDoc name text = do
-  let fileName = songDirectory <> "/" <> (unpack $ replace " " "" name) <> ".txt"
+writeNewDoc :: MonadIO m => Document -> m ()
+writeNewDoc text = do
+  name <- toString <$> (liftIO randomIO)
+  let fileName = songDirectory <> "/" <> name <> ".txt"
   L.log' $ pack $ "Writing file " <> fileName
-  liftIO $ writeFile fileName text
+  liftIO $ encodeFile fileName text
 
-fileToDoc :: FilePath -> FilePath -> IO Document
+fileToDoc :: MonadIO m => FilePath -> FilePath -> m (Maybe Document)
 fileToDoc dir fileName =
   let docName = pack $ takeWhile (/= '.') fileName
       filePath = dir <> "/" <> fileName
-  in (mkDocument docName) <$> readFile filePath
+  in do
+    doc <- liftIO $ decodeFileEither filePath
+    case doc of
+      Left err -> liftIO $ L.warn' (pack $ show $ err) >> return Nothing
+      Right text -> return $ Just text
 
-getFiles :: FilePath -> IO [Document]
+getFiles :: MonadIO m => FilePath -> m [Document]
 getFiles dir = do
-  files <- listDirectory dir
-  mapM (fileToDoc dir) files
+  files <- liftIO $ listDirectory dir
+  catMaybes <$> mapM (fileToDoc dir) files
 
-getTfIdfFromDir :: FilePath -> Int -> Int -> IO (Documents, TfIdf)
-getTfIdfFromDir dir minGrams maxGrams = do
-  docs <- getFiles dir
+getTfIdfFromDir :: MonadIO m => FilePath -> DocumentReader m (Corpus, TfIdf)
+getTfIdfFromDir dir = do
+  docs <- liftIO $ getFiles dir
+  corpus <- genCorpus docs
   let docMap = M.fromList $ (\d -> (docName d, d)) <$> docs
-      tfidf = genTfIdfFromDocs minGrams maxGrams docs
-  return (docMap, tfidf)
+      tfidf = genTfIdf corpus
+  return (corpus, tfidf)

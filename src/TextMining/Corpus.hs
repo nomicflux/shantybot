@@ -20,7 +20,7 @@ import TextMining.NGram
 import TextMining.Normalization
 import TextMining.DocumentReader
 
-newtype FreqMap = FreqMap (Map NGram Int)
+newtype FreqMap = FreqMap { getFreqs :: Map NGram Int }
   deriving (Show, Eq)
 
 instance Monoid FreqMap where
@@ -44,6 +44,12 @@ instance Monoid Corpus where
 --getFreqsForName :: Corpus -> Text -> FreqMap
 --getFreqsForName corpus =
   --maybe mempty (foldl' (<>) mempty) . ((corpusItemFreqs <$>) . <$>) . (flip M.lookup) corpus
+documentFromCorpusItem :: CorpusItem -> Document
+documentFromCorpusItem item = Document (corpusItemName item) (corpusItemText item)
+
+documentsFromCorpus :: Corpus -> Text -> [Document]
+documentsFromCorpus corpus name =
+  maybe [] (documentFromCorpusItem <$>) $ M.lookup name (corpusItems corpus)
 
 ngramSets :: Corpus -> Map Text (Set NGram)
 ngramSets Corpus{..} = M.map (S.fromList . join . map corpusItemNGrams) corpusItems

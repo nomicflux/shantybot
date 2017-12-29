@@ -56,6 +56,8 @@ library:
   - stm
   - warp
   - mtl
+  - uuid
+  - random
 
 executables:
   ShantyBot-exe:

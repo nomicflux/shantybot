@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 93408be7df80a46d558339f6c41d2a36c581d1f0b8b5cca3de8e1a313885c66e
+-- hash: 03d9e33b621e041fef3be708131e1d535afdc1929654f1b3b15edb9344b7b774
 
 name:           ShantyBot
 version:        0.1.0.0
@@ -49,6 +49,7 @@ library
     , pipes-aeson
     , pipes-bytestring
     , pipes-http
+    , random
     , servant >=0.11
     , servant-options
     , servant-server >=0.11
@@ -57,6 +58,7 @@ library
     , text
     , time
     , transformers
+    , uuid
     , wai-cors
     , wai-extra
     , warp

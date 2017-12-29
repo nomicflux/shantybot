@@ -3,9 +3,10 @@
 
 module TextMining.RetrievalReader where
 
+import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.Trans.Reader (ReaderT, runReaderT)
+import Control.Monad.Trans.Reader (ReaderT, runReaderT, runReader, ask)
 import Control.Concurrent.STM (TVar)
 import qualified Control.Concurrent.STM as STM
 import Data.Map (Map)
@@ -17,38 +18,45 @@ import qualified Data.Text.IO as TIO
 
 import Servant (ServantErr, Handler, (:~>)(..))
 
-import TextMining.Document (Document, Documents, TfIdf(..), mkDocument, genTfIdfFromDocs)
+import TextMining.Document (Document, mkDocument)
+import TextMining.DocumentReader (DocumentReader, DocumentSettings)
+import TextMining.Corpus (Corpus, addToCorpus)
+import TextMining.TfIdf (TfIdf, genTfIdf)
 import TextMining.RetrievalService (songDirectory, writeNewDoc)
 
-type AppM = ReaderT DocumentRetrieval IO
+type AppM = DocumentReader (ReaderT DocumentRetrieval IO)
 
-readerTToHandler :: DocumentRetrieval -> AppM :~> Handler
-readerTToHandler cfg = NT (\r -> liftIO $ runReaderT r cfg)
+getDocSettings :: AppM DocumentSettings
+getDocSettings = ask
 
-data DocumentRetrieval = DocumentRetrieval { rcDocs :: TVar Documents
+getDocVars :: AppM DocumentRetrieval
+getDocVars = lift ask
+
+readerTToHandler :: DocumentSettings -> DocumentRetrieval -> AppM :~> Handler
+readerTToHandler docCfg cfg = NT (\r -> liftIO $ runReaderT (runReaderT r docCfg) cfg)
+
+data DocumentRetrieval = DocumentRetrieval { rcDocs :: TVar Corpus
                                            , rcTfidf :: TVar TfIdf
                                            }
 
-mkConfig :: MonadIO m => Documents -> TfIdf -> m DocumentRetrieval
+mkConfig :: MonadIO m => Corpus -> TfIdf -> m DocumentRetrieval
 mkConfig docs tfidf = do
   documents <- liftIO $ STM.newTVarIO docs
   tfidf <- liftIO $ STM.newTVarIO tfidf
   return $ DocumentRetrieval documents tfidf
 
-updateDocs :: (MonadIO m) => Text -> Text -> DocumentRetrieval -> m ()
-updateDocs name text docState = do
+updateDocs :: MonadIO m => Document -> DocumentRetrieval -> DocumentReader m ()
+updateDocs thisDoc docState = do
+  docSettings <- ask
   let docVar = rcDocs docState
       tfidfVar = rcTfidf docState
   synchronized <- liftIO $ STM.atomically $ do
-    oldDocs <- STM.readTVar $ docVar
+    oldCorpus <- STM.readTVar $ docVar
     oldTfidf <- STM.readTVar $ tfidfVar
     let
-      thisDoc = mkDocument name text
-      newDocs = thisDoc : (snd <$> M.toList oldDocs)
-    STM.modifyTVar docVar $ (M.insert name thisDoc)
-    let
-      minGrams = tfidfMinGrams oldTfidf
-      maxGrams = tfidfMaxGrams oldTfidf
-      newTfidf = genTfIdfFromDocs minGrams maxGrams newDocs
+      newCorpus :: Corpus
+      newCorpus = runReader (addToCorpus oldCorpus thisDoc) docSettings
+    STM.writeTVar docVar newCorpus
+    let newTfidf = genTfIdf newCorpus
     STM.writeTVar tfidfVar $ newTfidf
-  liftIO $ writeNewDoc name text
+  liftIO $ writeNewDoc thisDoc

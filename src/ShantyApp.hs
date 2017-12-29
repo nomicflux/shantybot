@@ -12,12 +12,14 @@ import Control.Monad ((<=<), forever)
 import Control.Monad.Loops (iterateM_)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader.Class (MonadReader, ask)
+import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Control (MonadBaseControl)
 import Control.Monad.Trans.Reader (ReaderT, runReaderT)
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Maybe (mapMaybe, fromMaybe)
 import Data.Monoid ((<>))
+import qualified Data.Set as S
 import Data.Text (Text)
 import Data.Text.IO (readFile, writeFile)
 import qualified Data.Text as T
@@ -30,6 +32,9 @@ import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.Cors as Cors
 
 import TextMining.Document
+import TextMining.DocumentReader (DocumentReader, DocumentSettings(..))
+import TextMining.Corpus (Corpus(..))
+import TextMining.TfIdf (TfIdf, matchPhrase)
 import TextMining.RetrievalService
 import TextMining.RetrievalReader (mkConfig, DocumentRetrieval(..))
 import TextMining.RetrievalEndpoint
@@ -60,8 +65,8 @@ wordsToLimit n text = go (filter (/= "") . T.words $ text) "" 0
     go (x:xs) res m =
       if m + T.length x > n then res else go xs (res <> " " <> x) (m + T.length x + 1)
 
-respondToTweet :: Documents -> TfIdf -> Tweet -> Maybe (Tweet, Text)
-respondToTweet docMap tfidf tweet = songMsg <$> song
+respondToTweet :: Corpus -> TfIdf -> Tweet -> Maybe (Tweet, Text)
+respondToTweet corpus tfidf tweet = songMsg <$> song
   where
     respondToPerson = "@" <> (tweetUserScreenName $ tweetUser tweet)  <> " "
     name = T.unwords . take 1 . T.words . tweetUserName . tweetUser $ tweet
@@ -77,17 +82,17 @@ runCycle :: (MonadIO m, MonadReader DocumentRetrieval m) =>
   (Maybe Text -> m Request) ->
   (Tweet -> Text -> m Request) ->
   Maybe Text ->
-  m (Maybe Text)
+  DocumentReader m (Maybe Text)
 runCycle manager get post prevId = do
-  docState <- ask
-  docMap <- liftIO $ STM.readTVarIO (rcDocs docState)
+  docState <- lift $ ask
+  corpus <- liftIO $ STM.readTVarIO (rcDocs docState)
   tfidf <- liftIO $ STM.readTVarIO (rcTfidf docState)
-  getter <- get prevId
+  getter <- lift $ get prevId
   (tweets :: [Tweet]) <- queryEndpoint manager getter
   liftIO $ L.log' . T.pack $ show tweets
-  let responses = mapMaybe (respondToTweet docMap tfidf) tweets
+  let responses = mapMaybe (respondToTweet corpus tfidf) tweets
   liftIO $ L.debug' . T.pack $ show responses
-  mapM_ (useEndpoint manager <=< uncurry post) responses
+  lift $ mapM_ (useEndpoint manager <=< uncurry post) responses
   let
     ids :: [Integer]
     ids = map (read . T.unpack . tweetId) tweets
@@ -95,7 +100,7 @@ runCycle manager get post prevId = do
     maxId = if null ids then Nothing else Just $ maximum ids
   return $ T.pack . show <$> maxId
 
-mainProg :: (MonadIO m, MonadReader DocumentRetrieval m) => Config -> m ()
+mainProg :: (MonadIO m, MonadReader DocumentRetrieval m) => Config -> DocumentReader m ()
 mainProg cfg = do
   manager <- liftIO $ newManager tlsManagerSettings
   let
@@ -112,18 +117,18 @@ mainProg cfg = do
   iterateM_ fromId firstId
   return ()
 
-runService :: (MonadBaseControl IO m, MonadIO m) => m ()
+runService :: (MonadBaseControl IO m, MonadIO m) => DocumentReader m ()
 runService = do
+  settings <- ask
   cfg <- getConfig
-  (docs, tfidf) <- liftIO $ getTfIdfFromDir songDirectory 1 4
+  (docs, tfidf) <- getTfIdfFromDir songDirectory
   serverCfg <- mkConfig docs tfidf
   let
     logger Nothing = L.withStdoutLogging
     logger (Just logfile) = L.withFileLogging logfile
   logger (configLogfile cfg) $ do
-    --liftIO . Warp.run 8803 . S.serve documentAPI . documentServer $ serverCfg
     let policy = Cors.simpleCorsResourcePolicy { Cors.corsRequestHeaders = [ "content-type" , "Accept", "Method" ]
                                                , Cors.corsMethods = Cors.simpleMethods
                                                }
     liftIO . forkIO . runReaderT (mainProg cfg) $ serverCfg
-    liftIO $ Warp.run 8803 . RL.logStdoutDev . Cors.cors (const $ Just policy) . SO.provideOptions documentAPI . S.serve documentAPI . documentServer $ serverCfg
+    liftIO $ Warp.run 8803 . RL.logStdoutDev . Cors.cors (const $ Just policy) . SO.provideOptions documentAPI . S.serve documentAPI $ documentServer settings serverCfg
