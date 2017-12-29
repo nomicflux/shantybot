@@ -19,7 +19,7 @@ newtype Line = Line { lineText :: Text }
 
 instance FromJSON Line where
   parseJSON = withObject "LineObject" $ \o ->
-    Line <$> o .: "phrase"
+    Line <$> o .: "line"
 
 instance ToJSON Line where
   toJSON (Line text) = object [ "line" .= text ]

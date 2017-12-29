@@ -17,7 +17,7 @@ import Control.Monad.Trans.Control (MonadBaseControl)
 import Control.Monad.Trans.Reader (ReaderT, runReaderT)
 import Data.Map (Map)
 import qualified Data.Map as M
-import Data.Maybe (mapMaybe, fromMaybe)
+import Data.Maybe (mapMaybe, fromMaybe, listToMaybe, catMaybes)
 import Data.Monoid ((<>))
 import qualified Data.Set as S
 import Data.Text (Text)
@@ -33,7 +33,7 @@ import qualified Network.Wai.Middleware.Cors as Cors
 
 import TextMining.Document
 import TextMining.DocumentReader (DocumentReader, DocumentSettings(..))
-import TextMining.Corpus (Corpus(..))
+import TextMining.Corpus (Corpus(..), documentsFromCorpus)
 import TextMining.TfIdf (TfIdf, matchPhrase)
 import TextMining.RetrievalService
 import TextMining.RetrievalReader (mkConfig, DocumentRetrieval(..))
@@ -65,16 +65,19 @@ wordsToLimit n text = go (filter (/= "") . T.words $ text) "" 0
     go (x:xs) res m =
       if m + T.length x > n then res else go xs (res <> " " <> x) (m + T.length x + 1)
 
-respondToTweet :: Corpus -> TfIdf -> Tweet -> Maybe (Tweet, Text)
-respondToTweet corpus tfidf tweet = songMsg <$> song
+respondToTweet :: Monad m => Corpus -> TfIdf -> Tweet -> DocumentReader m (Maybe (Tweet, Text))
+respondToTweet corpus tfidf tweet = do
+  song <- matchPhrase (filterOutMention $ tweetText tweet) tfidf
+  return $ songMsg <$> song
   where
     respondToPerson = "@" <> (tweetUserScreenName $ tweetUser tweet)  <> " "
     name = T.unwords . take 1 . T.words . tweetUserName . tweetUser $ tweet
     greeting = "Ahoy " <> name <> ", perhaps you want: "
-    song = matchPhrase (filterOutMention $ tweetText tweet) tfidf
     songMsg s = let msg = greeting <> unPascalCase s <> "? "
                     size = T.length msg
-                    songText = fromMaybe "" $ docText <$> M.lookup s docMap
+                    matches = docText <$> documentsFromCorpus corpus s
+                    lines = matches >>= (lineText <$>)
+                    songText = fromMaybe "" $ listToMaybe lines
                 in (tweet, respondToPerson <> msg <> wordsToLimit (140 - size - 4) songText <> " ...")
 
 runCycle :: (MonadIO m, MonadReader DocumentRetrieval m) =>
@@ -90,7 +93,8 @@ runCycle manager get post prevId = do
   getter <- lift $ get prevId
   (tweets :: [Tweet]) <- queryEndpoint manager getter
   liftIO $ L.log' . T.pack $ show tweets
-  let responses = mapMaybe (respondToTweet corpus tfidf) tweets
+  maybeResponses <- mapM (respondToTweet corpus tfidf) tweets
+  let responses = catMaybes maybeResponses
   liftIO $ L.debug' . T.pack $ show responses
   lift $ mapM_ (useEndpoint manager <=< uncurry post) responses
   let
@@ -121,14 +125,14 @@ runService :: (MonadBaseControl IO m, MonadIO m) => DocumentReader m ()
 runService = do
   settings <- ask
   cfg <- getConfig
-  (docs, tfidf) <- getTfIdfFromDir songDirectory
-  serverCfg <- mkConfig docs tfidf
   let
     logger Nothing = L.withStdoutLogging
     logger (Just logfile) = L.withFileLogging logfile
   logger (configLogfile cfg) $ do
+    (docs, tfidf) <- getTfIdfFromDir songDirectory
+    serverCfg <- mkConfig docs tfidf
     let policy = Cors.simpleCorsResourcePolicy { Cors.corsRequestHeaders = [ "content-type" , "Accept", "Method" ]
                                                , Cors.corsMethods = Cors.simpleMethods
                                                }
-    liftIO . forkIO . runReaderT (mainProg cfg) $ serverCfg
+    liftIO . forkIO $ (runReaderT (runReaderT (mainProg cfg) settings) serverCfg)
     liftIO $ Warp.run 8803 . RL.logStdoutDev . Cors.cors (const $ Just policy) . SO.provideOptions documentAPI . S.serve documentAPI $ documentServer settings serverCfg

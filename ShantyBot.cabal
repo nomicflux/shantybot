@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 03d9e33b621e041fef3be708131e1d535afdc1929654f1b3b15edb9344b7b774
+-- hash: d5ab9adb0deefb583bfae8f43fed5baca78e42645f519b8579db7204689a7492
 
 name:           ShantyBot
 version:        0.1.0.0
@@ -92,6 +92,9 @@ executable ShantyBot-exe
   build-depends:
       ShantyBot
     , base >=4.7 && <5
+    , containers
+    , logging
+    , transformers
   other-modules:
       Paths_ShantyBot
   default-language: Haskell2010

@@ -69,6 +69,9 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - ShantyBot
+    - transformers
+    - containers
+    - logging
 
 tests:
   ShantyBot-test:
