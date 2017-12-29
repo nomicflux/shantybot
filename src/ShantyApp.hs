@@ -31,13 +31,14 @@ import qualified Network.Wai.Middleware.RequestLogger as RL
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.Cors as Cors
 
+import Song.Song
 import TextMining.Document
 import TextMining.DocumentReader (DocumentReader, DocumentSettings(..))
 import TextMining.Corpus (Corpus(..), documentsFromCorpus)
 import TextMining.TfIdf (TfIdf, matchPhrase)
-import TextMining.RetrievalService
-import TextMining.RetrievalReader (mkConfig, DocumentRetrieval(..))
-import TextMining.RetrievalEndpoint
+import TextRetrieval.RetrievalService
+import TextRetrieval.RetrievalReader (mkConfig, DocumentRetrieval(..))
+import TextRetrieval.RetrievalEndpoint
 import Twitter.Internal.AccessInfo
 import Twitter.Streaming
 import Twitter.Tweet
@@ -129,8 +130,8 @@ runService = do
     logger Nothing = L.withStdoutLogging
     logger (Just logfile) = L.withFileLogging logfile
   logger (configLogfile cfg) $ do
-    (docs, tfidf) <- getTfIdfFromDir songDirectory
-    serverCfg <- mkConfig docs tfidf
+    (songs, corpus, tfidf) <- getTfIdfFromDir songDirectory
+    serverCfg <- mkConfig corpus tfidf
     let policy = Cors.simpleCorsResourcePolicy { Cors.corsRequestHeaders = [ "content-type" , "Accept", "Method" ]
                                                , Cors.corsMethods = Cors.simpleMethods
                                                }

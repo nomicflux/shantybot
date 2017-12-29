@@ -2,7 +2,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module TextMining.RetrievalEndpoint where
+module TextRetrieval.RetrievalEndpoint where
 
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Reader (ask)
@@ -20,23 +20,24 @@ import Servant
 import Servant.Server (enter)
 import Servant.API
 
+import Song.Song
 import TextMining.Document (Document, Line(..), mkDocument)
 import TextMining.DocumentReader (DocumentSettings)
 import TextMining.Corpus (documentsFromCorpus, Corpus(..))
 import TextMining.TfIdf (matchPhrase)
-import TextMining.RetrievalReader
-import TextMining.RetrievalService
+import TextRetrieval.RetrievalReader
+import TextRetrieval.RetrievalService
 
 type DocumentAPI = "gettitles" :> Get '[JSON] [Text]
               :<|> "get" :> Capture "name" Text :> Get '[JSON] [Document]
-              :<|> "add" :> Capture "name" Text :> ReqBody '[JSON] TextWrapper :> Post '[JSON] Bool
-              :<|> "match" :> ReqBody '[JSON] Line :> Post '[JSON] [Document]
+              :<|> "add" :> ReqBody '[JSON] Song :> Post '[JSON] Bool
+              :<|> "match" :> ReqBody '[JSON] TextWrapper :> Post '[JSON] [Document]
 
 newtype TextWrapper = TextWrapper Text
 
 instance FromJSON TextWrapper where
   parseJSON = withObject "TextWrapperObject" $ \obj ->
-    TextWrapper <$> obj .: "value"
+    TextWrapper <$> obj .: "text"
 
 documentAPI :: Proxy DocumentAPI
 documentAPI = Proxy
@@ -47,7 +48,7 @@ documentServer docCfg cfg = enter (readerTToHandler docCfg cfg) documentServerT
 documentServerT :: ServerT DocumentAPI AppM
 documentServerT = getAllTitles
              :<|> getDoc
-             :<|> addDoc
+             :<|> addSong
              :<|> matchToDocs
 
 getAllTitles :: AppM [Text]
@@ -62,16 +63,14 @@ getDoc name = do
   --L.debug' $ "Corpus" <> T.pack (show corpus)
   return $ documentsFromCorpus corpus name
 
-addDoc :: Text -> TextWrapper -> AppM Bool
-addDoc name (TextWrapper text) = do
-  let doc = mkDocument name text
+addSong :: Song -> AppM Bool
+addSong song = do
   docVar <- getDocVars
-  L.debug' $ "Adding " <> name <> " with text " <> text
-  updateDocs doc docVar
+  updateDocs song docVar
   return True
 
-matchToDocs :: Line -> AppM [Document]
-matchToDocs (Line phrase) = do
+matchToDocs :: TextWrapper -> AppM [Document]
+matchToDocs (TextWrapper phrase) = do
   liftIO $ L.debug' phrase
   tfidfVar <- rcTfidf <$> getDocVars
   docsVar <- rcDocs <$> getDocVars

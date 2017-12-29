@@ -5,6 +5,7 @@
 module Song.Song where
 
 import Data.Aeson (FromJSON, parseJSON, (.:), withObject, ToJSON, toJSON, object, (.=))
+import Data.List (foldl')
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Text (Text)
@@ -39,6 +40,9 @@ instance ToJSON Song where
                            ]
 
 newtype SongDictionary = SongDictionary (Map Text [Song])
+
+mkDictionary :: [Song] -> SongDictionary
+mkDictionary = foldl' addToDictionary (SongDictionary M.empty)
 
 addToDictionary :: SongDictionary -> Song -> SongDictionary
 addToDictionary (SongDictionary songDict) song =
