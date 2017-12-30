@@ -97,20 +97,24 @@ addDeleteDiv =
                      , HE.onClick (HE.input_ SendSong) ] [ HH.text "Record Song"]
          ]
 
-titleDiv :: H.ComponentHTML Query
-titleDiv = HH.div [ HP.class_ (HH.ClassName "pure-u-1-6") ]
-                  [ HH.label [ HP.for "title"] [HH.text "Title: " ]
-                  , HH.input [ HP.name "title"
-                             , HE.onValueInput (HE.input SetTitle)
-                             ]
-                  ]
+titleDiv :: State -> H.ComponentHTML Query
+titleDiv state =
+  HH.div [ HP.class_ (HH.ClassName "pure-u-1-6") ]
+         [ HH.label [ HP.for "title"] [HH.text "Title: " ]
+         , HH.input [ HP.name "title"
+                    , HP.value state.title
+                    , HE.onValueInput (HE.input SetTitle)
+                    ]
+         ]
 
-chorusDiv :: H.ComponentHTML Query
-chorusDiv = HH.div [ HP.class_ (HH.ClassName "pure-u-2-6") ]
-                   [ HH.label [ HP.for "chorus"] [HH.text "Chorus: " ]
-                   , HH.textarea [ HP.name "chorus"
-                                 , HE.onValueInput (HE.input SetChorus)
-                                 ]
+chorusDiv :: State -> H.ComponentHTML Query
+chorusDiv state =
+  HH.div [ HP.class_ (HH.ClassName "pure-u-2-6") ]
+         [ HH.label [ HP.for "chorus"] [HH.text "Chorus: " ]
+         , HH.textarea [ HP.name "chorus"
+                       , HP.value state.chorus
+                       , HE.onValueInput (HE.input SetChorus)
+                       ]
                    ]
 
 verseDiv :: Int -> H.ComponentHTML Query
@@ -121,18 +125,19 @@ verseDiv num = HH.div_ [ HH.label [ HP.for ("verse" <> show num) ]
                                      ]
                        ]
 
-versesDiv :: Int -> H.ComponentHTML Query
-versesDiv total = HH.div [ HP.class_ (HH.ClassName "pure-u-2-6") ]
-                         (if total > 0 then verseDiv <$> range 1 total else [])
+versesDiv :: State -> H.ComponentHTML Query
+versesDiv state =
+  HH.div [ HP.class_ (HH.ClassName "pure-u-2-6") ]
+         (if state.numVerses > 0 then verseDiv <$> range 1 state.numVerses else [])
 
 render :: State -> H.ComponentHTML Query
 render state =
   HH.div
     [ HP.class_ (HH.ClassName "pure-g pure-u-1") ]
     [ HH.div [ HP.classes (HH.ClassName <$> ["pure-u-1", "pure-form", "pure-form-aligned"]) ]
-             [ titleDiv
-             , chorusDiv
-             , versesDiv state.numVerses
+             [ titleDiv state
+             , chorusDiv state
+             , versesDiv state
              , addDeleteDiv
              ]
     ]

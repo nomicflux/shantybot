@@ -23,10 +23,14 @@ decontraction :: Text -> Text
 decontraction word
   | last2 == "'s" = T.dropEnd 2 word <> " is"
   | last2 == "'m" = T.dropEnd 2 word <> " am"
+  | last3 == "in'" = T.dropEnd 1 word <> "g"
+  | last3 == "s'l" = T.dropEnd 3 word <> "sail"
   | last3 == "'ll" = T.dropEnd 3 word <> " will"
   | last3 == "'ve" = T.dropEnd 3 word <> " have"
   | last3 == "'nt" = T.dropEnd 3 word <> " not"
   | last3 == "'re" = T.dropEnd 3 word <> " are"
+  | word == "twas" = "it was"
+  | word == "til" || word == "till" = "until"
   | otherwise = word
   where
     last2 = T.takeEnd 2 word

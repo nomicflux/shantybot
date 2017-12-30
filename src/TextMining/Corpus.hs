@@ -14,6 +14,7 @@ import Data.Monoid ((<>), mempty, mappend)
 import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Text (Text)
+import qualified Data.Text as T
 
 import TextMining.Document
 import TextMining.NGram
@@ -65,13 +66,17 @@ genFreqMap :: [NGram] -> FreqMap
 genFreqMap doc =
   FreqMap $ foldl' (\acc nGram -> M.insertWith (+) nGram 1 acc) M.empty doc
 
+normalizeName :: Text -> Text
+normalizeName = T.replace "  " " " . normalizeWord . T.toLower
+
 mkCorpusItem :: (Monad m, ToDocument a) => a -> DocumentReader m (CorpusItem a)
 mkCorpusItem doc = ask >>= (\settings ->
   let
     Document{..} = toDocument doc
+    title = normalizeName docName
     newText = genNMGrams (minGrams settings) (maxGrams settings) . cleanText $ docText
     freqs = genFreqMap newText
-  in return $ CorpusItem docName doc newText freqs)
+  in return $ CorpusItem title doc newText freqs)
 
 addToCorpus :: (Monad m, ToDocument a) => Corpus a -> a -> DocumentReader m (Corpus a)
 addToCorpus corpus doc = mkCorpusItem doc >>= (\item ->

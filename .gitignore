@@ -6,3 +6,4 @@ data/songs/
 data/lastId
 logs/
 config/token-config.yaml
+.DS_Store
