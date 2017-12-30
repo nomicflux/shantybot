@@ -1,16 +1,13 @@
-module Component.MatchPhrase where
+module Component.MatchSong where
 
 import Prelude
 
-import Control.Monad (join)
 import Control.Monad.Aff (Aff)
-import Data.Argonaut (class EncodeJson, encodeJson, foldJsonObject, fromObject, jsonSingletonObject, toString)
+import Data.Argonaut (decodeJson, encodeJson)
 import Data.Either (Either(..))
 import Data.HTTP.Method (Method(..))
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..))
 import Data.MediaType (MediaType(..))
-import Data.StrMap (lookup)
-import Data.StrMap as StrMap
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -18,27 +15,23 @@ import Halogen.HTML.Properties as HP
 import Network.HTTP.Affjax (AJAX)
 import Network.HTTP.Affjax as AX
 import Network.HTTP.RequestHeader (RequestHeader(..))
+import Song.Song (Line(..), Song, getTitleText, getChorusText, getVersesText)
 
 data Query a = SendPhrase a
              | SetPhrase String a
 
-data Phrase = Phrase String
-
-instance encodePhrase :: EncodeJson Phrase where
-  encodeJson (Phrase phrase) = jsonSingletonObject "phrase" (encodeJson phrase)
-
-type State = { phrase :: Phrase
-             , text :: Maybe String
+type State = { phrase :: Line
+             , songs :: Array Song
              , loading :: Boolean
              }
 
 initialState :: State
-initialState = { phrase: Phrase "", text: Nothing, loading: false }
+initialState = { phrase: Line "", songs: [], loading: false }
 
 eval :: forall eff. Query ~> H.ComponentDSL State Query Void (Aff (ajax :: AJAX | eff))
 eval = case _ of
   SetPhrase phrase next -> do
-    H.modify (_ { phrase = Phrase phrase })
+    H.modify (_ { phrase = Line phrase })
     pure next
   SendPhrase next -> do
     phrase <- H.gets _.phrase
@@ -52,37 +45,61 @@ eval = case _ of
                                           ]
                               }
     response <- H.liftAff $ AX.affjax req
-    let newText = do
-          obj <- foldJsonObject Nothing (lookup "text") response.response
-          toString obj
-    H.modify (_ { text = newText, loading = false })
+    _ <- case decodeJson response.response of
+      Left err ->
+        pure unit
+      Right songs ->
+        H.modify (_ { songs = songs, loading = false })
     pure next
 
-songDiv :: State -> H.ComponentHTML Query
-songDiv state =
+songClass :: HH.ClassName
+songClass = HH.ClassName "song-song"
+titleClass :: HH.ClassName
+titleClass = HH.ClassName "song-title"
+chorusClass :: HH.ClassName
+chorusClass = HH.ClassName "song-chorus"
+verseClass :: HH.ClassName
+verseClass = HH.ClassName "song-verse"
+
+arrayToHTML :: forall p i. Array String -> Array (HH.HTML p i)
+arrayToHTML arr = HH.text <$> arr >>= (\t -> [t, HH.br_])
+
+verseDiv :: Array String -> H.ComponentHTML Query
+verseDiv verse = HH.div [ HP.class_ verseClass ] (arrayToHTML verse)
+
+songDiv :: Song -> H.ComponentHTML Query
+songDiv song =
+  HH.div [ HP.class_ songClass ]
+         [ HH.div [HP.class_ titleClass] [ HH.span_ [ (HH.text $ getTitleText song) ] ]
+         , HH.div [HP.class_ chorusClass] (arrayToHTML $ getChorusText song)
+         , HH.div_ (verseDiv <$> getVersesText song)
+         ]
+
+songsDiv :: State -> H.ComponentHTML Query
+songsDiv state =
   HH.div [ HP.class_ (HH.ClassName "pure-u-2-3") ]
          if state.loading then
            [ HH.text "Loading ..." ]
          else
-           [ HH.text (fromMaybe "" state.text) ]
-
+           (songDiv <$> state.songs)
 
 render :: State -> H.ComponentHTML Query
 render state =
   HH.div
-    [ HP.class_ (HH.ClassName "pure-g") ]
+    [ HP.class_ (HH.ClassName "pure-g pure-u-1") ]
     [ HH.div [ HP.class_ (HH.ClassName "pure-u-1-3") ]
              [ HH.div [ HP.classes ( HH.ClassName <$> ["pure-form", "pure-form-aligned" ] )
                       ]
                       [ HH.div [ HP.class_ (HH.ClassName "pure-control-group") ]
                                [ HH.label [ HP.for "phrase" ] [ HH.text "Phrase to match: " ]
-                               , HH.input [ HE.onValueInput (HE.input SetPhrase) ]
+                               , HH.input [ HP.name "phrase"
+                                          , HE.onValueInput (HE.input SetPhrase) ]
                                ]
                       , HH.button [ HP.class_ (HH.ClassName "pure-button")
                                   , HE.onClick (HE.input_ SendPhrase)
                                   ] [ HH.text "Get Match" ]
                       ] ]
-    , songDiv state
+    , songsDiv state
     ]
 
 component :: forall eff. H.Component HH.HTML Query Unit Void (Aff (ajax :: AJAX | eff))
