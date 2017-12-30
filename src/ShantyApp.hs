@@ -28,7 +28,7 @@ import qualified Network.Wai.Middleware.RequestLogger as RL
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.Cors as Cors
 
-import Song.Song (Song(..), chorusToText)
+import Song.Song (Song(..), songToText)
 import TextMining.Document (ToDocument(..))
 import TextMining.DocumentReader (DocumentReader)
 import TextMining.Corpus (Corpus)
@@ -63,7 +63,7 @@ respondToTweet corpus tfidf tweet = do
     greeting = "Ahoy " <> name <> ", perhaps you want: "
     songMsg s = let msg = greeting <> songTitle s <> "? "
                     size = T.length msg
-                    songText = chorusToText s
+                    songText = songToText s
                 in (tweet, respondToPerson <> msg <> wordsToLimit (140 - size - 4) songText <> " ...")
 
 runCycle :: (MonadIO m, MonadReader (DocumentRetrieval Song) m) =>

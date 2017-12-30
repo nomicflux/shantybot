@@ -4,7 +4,9 @@
 
 module Song.Song where
 
-import Data.Aeson (FromJSON, parseJSON, (.:), withObject, ToJSON, toJSON, object, (.=))
+import Control.Monad (join)
+import Data.Aeson (FromJSON, parseJSON, (.:), (.:?), withObject, ToJSON, toJSON, object, (.=))
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
 
@@ -20,17 +22,20 @@ instance ToJSON Verse where
   toJSON (Verse verse) = object [ "verse" .= verse ]
 
 data Song = Song { songTitle :: Text
-                 , songChorus :: [Line]
+                 , songChorus :: Maybe [Line]
                  , songVerses :: [Verse]
                  }
 
-chorusToText :: Song -> Text
-chorusToText = T.intercalate "\n" . (lineText <$>) . songChorus
+songToText :: Song -> Text
+songToText Song{..} = T.intercalate "\n" $ lineText <$> songBody
+  where
+    songBody :: [Line]
+    songBody = join $ (fromMaybe [] songChorus) : (verseLines <$> songVerses)
 
 instance FromJSON Song where
   parseJSON = withObject "SongObject" $ \o -> do
     songTitle <- o .: "title"
-    songChorus <- o .: "chorus"
+    songChorus <- o .:? "chorus"
     songVerses <- o .: "verses"
     return Song{..}
 
@@ -43,7 +48,7 @@ instance ToJSON Song where
 songToDocument :: Song -> Document
 songToDocument Song{..} = Document songTitle songBody
   where
-    songBody = songChorus ++ (songVerses >>= verseLines)
+    songBody = (fromMaybe [] songChorus) ++ (songVerses >>= verseLines)
 
 instance ToDocument Song where
   toDocument = songToDocument

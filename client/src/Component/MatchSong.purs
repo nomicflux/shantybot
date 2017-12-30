@@ -4,6 +4,7 @@ import Prelude
 
 import Control.Monad.Aff (Aff)
 import Data.Argonaut (decodeJson, encodeJson)
+import Data.Array (catMaybes)
 import Data.Either (Either(..))
 import Data.HTTP.Method (Method(..))
 import Data.Maybe (Maybe(..))
@@ -69,11 +70,13 @@ verseDiv verse = HH.div [ HP.class_ verseClass ] (arrayToHTML verse)
 
 songDiv :: Song -> H.ComponentHTML Query
 songDiv song =
-  HH.div [ HP.class_ songClass ]
-         [ HH.div [HP.class_ titleClass] [ HH.span_ [ (HH.text $ getTitleText song) ] ]
-         , HH.div [HP.class_ chorusClass] (arrayToHTML $ getChorusText song)
-         , HH.div_ (verseDiv <$> getVersesText song)
-         ]
+  HH.div [ HP.class_ songClass ] body
+  where
+    body =
+      catMaybes [ Just $ HH.div [HP.class_ titleClass] [ HH.span_ [ (HH.text $ getTitleText song) ] ]
+                , (HH.div [HP.class_ chorusClass] <<< arrayToHTML) <$> getChorusText song
+                , Just $ HH.div_ (verseDiv <$> getVersesText song)
+                ]
 
 songsDiv :: State -> H.ComponentHTML Query
 songsDiv state =

@@ -30,6 +30,7 @@ decontraction word
   | last3 == "'nt" = T.dropEnd 3 word <> " not"
   | last3 == "'re" = T.dropEnd 3 word <> " are"
   | word == "twas" = "it was"
+  | word == "tis" = "it is"
   | word == "til" || word == "till" = "until"
   | otherwise = word
   where

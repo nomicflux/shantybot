@@ -4,7 +4,11 @@ import Data.Argonaut
 import Prelude
 
 import Data.Array (filter)
-import Data.String (Pattern(..), split, trim, null)
+import Data.Array as A
+import Data.Either (hush)
+import Data.Maybe (Maybe(..), maybe)
+import Data.String (Pattern(..), split, trim)
+import Data.String as S
 
 data Line = Line String
 
@@ -29,30 +33,31 @@ instance decodeVerse :: DecodeJson Verse where
     pure (Verse verse)
 
 data Song = Song { songTitle :: String
-                 , songChorus :: Array Line
+                 , songChorus :: Maybe (Array Line)
                  , songVerses :: Array Verse
                  }
 
 instance encodeSong :: EncodeJson Song where
-  encodeJson (Song song) = ("title" := song.songTitle
-                           ~> "chorus" := song.songChorus
-                           ~> "verses" := song.songVerses
-                           ~> jsonEmptyObject
-                           )
+  encodeJson (Song song) =
+    let base = ("title" := song.songTitle
+                ~> "verses" := song.songVerses
+                ~> jsonEmptyObject
+               )
+    in maybe base (\c -> "chorus" := c ~> base) song.songChorus
 
 instance decodeSong :: DecodeJson Song where
   decodeJson s = do
     obj <- decodeJson s
     title <- getField obj "title"
-    chorus <- getField obj "chorus"
+    let chorus = getField obj "chorus"
     verses <- getField obj "verses"
     pure (Song { songTitle: title
-               , songChorus: chorus
+               , songChorus: hush chorus
                , songVerses: verses
                })
 
 mkLines :: String -> Array Line
-mkLines = map Line <<< filter (not null) <<< map trim <<< split (Pattern "\n")
+mkLines = map Line <<< filter (not S.null) <<< map trim <<< split (Pattern "\n")
 
 lineToString :: Line -> String
 lineToString (Line line) = line
@@ -60,8 +65,8 @@ lineToString (Line line) = line
 getTitleText :: Song -> String
 getTitleText (Song song) = song.songTitle
 
-getChorusText :: Song -> Array String
-getChorusText (Song song) = lineToString <$> song.songChorus
+getChorusText :: Song -> Maybe (Array String)
+getChorusText (Song song) = map (map lineToString) song.songChorus
 
 getVersesText :: Song -> Array (Array String)
 getVersesText (Song song) = verseToBlock <$> song.songVerses
@@ -73,6 +78,6 @@ mkSong title chorus verses =
   let chorus' = mkLines chorus
       verses' = Verse <$> mkLines <$> verses
   in Song { songTitle: title
-          , songChorus: chorus'
+          , songChorus: if S.null chorus then Nothing else Just chorus'
           , songVerses: verses'
           }

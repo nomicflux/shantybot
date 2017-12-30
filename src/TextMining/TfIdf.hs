@@ -59,7 +59,9 @@ genTfIdf corpus = TfIdf tfs' idf'
 
 cosineSimilarity :: ProbMap -> ProbMap -> Double
 cosineSimilarity (ProbMap m1) (ProbMap m2) =
-  (sum . fmap snd . M.toList . M.intersectionWith (*) m1 $ m2)
+  (sum . fmap snd . M.toList . M.intersectionWith (*) m1 $ m2) / (size m1 * size m2)
+  where
+    size = sqrt . M.foldl' (\acc v -> acc + v*v) 0
 
 getSimilarities :: ProbMap -> TfIdf -> Map Text Double
 getSimilarities phrase tfidf = M.map (cosineSimilarity idfPhrase) (tfs tfidf)
