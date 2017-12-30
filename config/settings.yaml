@@ -1,0 +1,3 @@
+minGrams: 1
+minStopwordGrams: 3
+maxGrams: 4

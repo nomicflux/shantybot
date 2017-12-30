@@ -79,9 +79,9 @@ mkCorpusItem doc = ask >>= (\settings ->
     title = normalizeName docName
     cleanedText = cleanText docText
     stopworded = removeStopwords (stopWords settings) cleanedText
-    newAllText = genNMGrams (minStopwordGrams settings) (maxGrams settings) $ stopworded
+    newAllText = genNMGrams (minStopwordGrams settings) (maxStopwordGrams settings) $ cleanedText
     newSWText = genNMGrams (minGrams settings) (maxGrams settings) $ stopworded
-    newText = newAllText ++ newSWText
+    newText = if includeStopwords settings then newAllText ++ newSWText else newSWText
     freqs = genFreqMap $ newText
   in return $ CorpusItem title doc newText freqs)
 
