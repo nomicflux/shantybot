@@ -13,7 +13,7 @@ import Data.Yaml (ToJSON)
 import Servant (Handler, (:~>)(..))
 
 import TextMining.Document (ToDocument(..))
-import TextMining.DocumentReader (DocumentReader, DocumentSettings)
+import TextMining.DocumentReader (DocumentReader, DocumentSettings(..))
 import TextMining.Corpus (Corpus, addToCorpus)
 import TextMining.TfIdf (TfIdf, genTfIdf)
 import TextRetrieval.RetrievalService (writeNewDoc)
@@ -50,4 +50,4 @@ updateDocs thisDoc docState = do
     STM.writeTVar docVar newCorpus
     let newTfidf = genTfIdf newCorpus
     STM.writeTVar tfidfVar $ newTfidf
-  liftIO $ writeNewDoc thisDoc
+  writeNewDoc thisDoc

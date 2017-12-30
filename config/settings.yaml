@@ -1,3 +1,5 @@
 minGrams: 1
 minStopwordGrams: 3
 maxGrams: 4
+maxStopwordGrams: 6
+documentPath: "data/songs"

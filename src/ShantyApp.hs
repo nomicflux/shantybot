@@ -30,7 +30,7 @@ import qualified Network.Wai.Middleware.Cors as Cors
 
 import Song.Song (Song(..), songToText)
 import TextMining.Document (ToDocument(..))
-import TextMining.DocumentReader (DocumentReader)
+import TextMining.DocumentReader (DocumentReader, DocumentSettings(..))
 import TextMining.Corpus (Corpus)
 import TextMining.TfIdf (TfIdf, matchInCorpus)
 import TextRetrieval.RetrievalService
@@ -116,7 +116,7 @@ runService = do
     logger Nothing = L.withStdoutLogging
     logger (Just logfile) = L.withFileLogging logfile
   logger (configLogfile cfg) $ do
-    (corpus, tfidf) <- getTfIdfFromDir songDirectory
+    (corpus, tfidf) <- getTfIdfFromDir
     serverCfg <- mkConfig corpus tfidf
     let policy = Cors.simpleCorsResourcePolicy { Cors.corsRequestHeaders = [ "content-type" , "Accept", "Method" ]
                                                , Cors.corsMethods = Cors.simpleMethods

@@ -15,6 +15,7 @@ data DocumentSettings = DocumentSettings { minGrams :: Int
                                          , maxGrams :: Int
                                          , maxStopwordGrams :: Int
                                          , includeStopwords :: Bool
+                                         , documentPath :: String
                                          , stopWords :: Set Text
                                          }
   deriving (Show)
@@ -26,6 +27,7 @@ instance FromJSON DocumentSettings where
     maxGrams <- o .: "maxGrams"
     maxStopwordGrams <- o .:? "maxStopwordGrams" .!= maxGrams
     includeStopwords <- o .:? "includeStopwords" .!= True
+    documentPath <- o .: "documentPath"
     let stopWords = S.empty
     return $ DocumentSettings{..}
 
