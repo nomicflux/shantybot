@@ -69,12 +69,17 @@ genFreqMap doc =
 normalizeName :: Text -> Text
 normalizeName = T.replace "  " " " . normalizeWord . T.toLower
 
+removeStopwords :: Set Text -> [NGram] -> [NGram]
+removeStopwords stopwords = filter (not . (flip S.member) stopwords . getNGram)
+
 mkCorpusItem :: (Monad m, ToDocument a) => a -> DocumentReader m (CorpusItem a)
 mkCorpusItem doc = ask >>= (\settings ->
   let
     Document{..} = toDocument doc
     title = normalizeName docName
-    newText = genNMGrams (minGrams settings) (maxGrams settings) . cleanText $ docText
+    cleanedText = cleanText docText
+    stopworded = cleanedText ++ removeStopwords (stopWords settings) cleanedText
+    newText = genNMGrams (minGrams settings) (maxGrams settings) $ stopworded
     freqs = genFreqMap newText
   in return $ CorpusItem title doc newText freqs)
 

@@ -72,6 +72,7 @@ executables:
     - transformers
     - containers
     - logging
+    - text
 
 tests:
   ShantyBot-test:

@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ff9c1df6aa4f6fbfac65377108cac2556c41133cf260f4d49ccaac92f80cc5d4
+-- hash: 2a7bf0db3006ef577fbbd8f7d9e76052d695b58f1a9e8bd8748b1f40b87405f5
 
 name:           ShantyBot
 version:        0.1.0.0
@@ -95,6 +95,7 @@ executable ShantyBot-exe
     , base >=4.7 && <5
     , containers
     , logging
+    , text
     , transformers
   other-modules:
       Paths_ShantyBot
