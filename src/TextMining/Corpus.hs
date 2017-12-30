@@ -78,9 +78,11 @@ mkCorpusItem doc = ask >>= (\settings ->
     Document{..} = toDocument doc
     title = normalizeName docName
     cleanedText = cleanText docText
-    stopworded = cleanedText ++ removeStopwords (stopWords settings) cleanedText
-    newText = genNMGrams (minGrams settings) (maxGrams settings) $ stopworded
-    freqs = genFreqMap newText
+    stopworded = removeStopwords (stopWords settings) cleanedText
+    newAllText = genNMGrams (minStopwordGrams settings) (maxGrams settings) $ stopworded
+    newSWText = genNMGrams (minGrams settings) (maxGrams settings) $ stopworded
+    newText = newAllText ++ newSWText
+    freqs = genFreqMap $ newText
   in return $ CorpusItem title doc newText freqs)
 
 addToCorpus :: (Monad m, ToDocument a) => Corpus a -> a -> DocumentReader m (Corpus a)

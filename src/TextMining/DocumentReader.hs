@@ -8,6 +8,7 @@ import Data.Set (Set)
 import Data.Text (Text)
 
 data DocumentSettings = DocumentSettings { minGrams :: Int
+                                         , minStopwordGrams :: Int
                                          , maxGrams :: Int
                                          , stopWords :: Set Text
                                          }

@@ -15,4 +15,4 @@ main :: IO ()
 main = L.withStdoutLogging $ do
   stopwordText <- TIO.readFile "data/stopwords.txt"
   let stopwords = S.fromList $ T.splitOn "," stopwordText
-  runReaderT runService (DocumentSettings 1 4 stopwords)
+  runReaderT runService (DocumentSettings 1 3 5 stopwords)
