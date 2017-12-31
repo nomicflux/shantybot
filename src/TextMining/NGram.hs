@@ -10,12 +10,21 @@ import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
 
-newtype NGram = NGram { getNGram :: Text }
+data NGram = NGram { getNGram :: Text
+                   , tokens :: Int
+                   }
   deriving (Show, Eq, Ord)
 
 instance Monoid NGram where
-  mempty = NGram ""
-  mappend (NGram text1) (NGram text2) = NGram (text1 <> comboText <> text2)
+  mempty = NGram "" 0
+  mappend (NGram text1 tokens1) (NGram text2 tokens2) =
+    NGram (text1 <> comboText <> text2) (tokens1 + tokens2)
+
+ngramToText :: NGram -> Text
+ngramToText = getNGram
+
+singleton :: Text -> NGram
+singleton = (flip NGram) 1
 
 comboText :: Text
 comboText = " "

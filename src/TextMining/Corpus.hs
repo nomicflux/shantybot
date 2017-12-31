@@ -62,9 +62,11 @@ corpusFromItem :: CorpusItem a -> Corpus a
 corpusFromItem c@CorpusItem{..} =
   Corpus $ M.fromList [(corpusItemName, [c])]
 
-genFreqMap :: [NGram] -> FreqMap
-genFreqMap doc =
-  FreqMap $ foldl' (\acc nGram -> M.insertWith (+) nGram 1 acc) M.empty doc
+genFreqMap :: Bool -> [NGram] -> FreqMap
+genFreqMap mult doc =
+  FreqMap $ foldl' (\acc nGram -> M.insertWith (+) nGram (gramN nGram) acc) M.empty doc
+  where
+    gramN = if mult then ((10 ^) >>= (*) >>= (*)) . tokens else const 1
 
 normalizeName :: Text -> Text
 normalizeName = T.replace "  " " " . normalizeWord . T.toLower
@@ -82,7 +84,7 @@ mkCorpusItem doc = ask >>= (\settings ->
     newAllText = genNMGrams (minStopwordGrams settings) (maxStopwordGrams settings) $ cleanedText
     newSWText = genNMGrams (minGrams settings) (maxGrams settings) $ stopworded
     newText = if includeStopwords settings then newAllText ++ newSWText else newSWText
-    freqs = genFreqMap $ newText
+    freqs = genFreqMap (ngramMultiplier settings) newText
   in return $ CorpusItem title doc newText freqs)
 
 addToCorpus :: (Monad m, ToDocument a) => Corpus a -> a -> DocumentReader m (Corpus a)

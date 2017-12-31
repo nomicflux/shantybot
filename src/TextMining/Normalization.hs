@@ -7,7 +7,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 
 import TextMining.Document (Line(..))
-import TextMining.NGram (NGram(..))
+import TextMining.NGram (NGram, singleton)
 
 punctuation :: String
 punctuation = ",.?!-:;\"\'"
@@ -29,8 +29,8 @@ decontraction word
   | last3 == "'ve" = T.dropEnd 3 word <> " have"
   | last3 == "'nt" = T.dropEnd 3 word <> " not"
   | last3 == "'re" = T.dropEnd 3 word <> " are"
-  | word == "twas" = "it was"
-  | word == "tis" = "it is"
+  | word == "twas" || word == "'twas"= "it was"
+  | word == "tis" || word == "'tis"= "it is"
   | word == "til" || word == "till" = "until"
   | otherwise = word
   where
@@ -44,7 +44,7 @@ normalizeWord :: Text -> Text
 normalizeWord = singularize . depunctuate . decontraction . T.strip
 
 cleanLine :: Line -> [NGram]
-cleanLine = (NGram <$>) . filter (/= "") . (normalizeWord <$>) . T.words . T.toLower . lineText
+cleanLine = (singleton <$>) . filter (/= "") . (normalizeWord <$>) . T.words . T.toLower . lineText
 
 cleanText :: [Line] -> [NGram]
 cleanText = (>>= cleanLine)

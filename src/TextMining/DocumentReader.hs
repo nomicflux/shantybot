@@ -15,6 +15,7 @@ data DocumentSettings = DocumentSettings { minGrams :: Int
                                          , maxGrams :: Int
                                          , maxStopwordGrams :: Int
                                          , includeStopwords :: Bool
+                                         , ngramMultiplier :: Bool
                                          , documentPath :: String
                                          , stopWords :: Set Text
                                          }
@@ -28,6 +29,7 @@ instance FromJSON DocumentSettings where
     maxStopwordGrams <- o .:? "maxStopwordGrams" .!= maxGrams
     includeStopwords <- o .:? "includeStopwords" .!= True
     documentPath <- o .: "documentPath"
+    ngramMultiplier <- o .:? "ngramMultiplier" .!= False
     let stopWords = S.empty
     return $ DocumentSettings{..}
 
