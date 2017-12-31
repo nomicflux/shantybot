@@ -40,8 +40,18 @@ decontraction word
 depunctuate :: Text -> Text
 depunctuate = T.filter (not . (`elem` punctuation))
 
+deregionalize :: Text -> Text
+deregionalize word
+  | last2 == "or" && word /= "or" = T.dropEnd 2 word <> "our"
+  | last3 == "ise" || (last3 == "ice" && word /= "ice") = T.dropEnd 3 word <> "ize"
+  | last2 == "re" = T.dropEnd 2 word <> "er"
+  | otherwise = word
+  where
+    last2 = T.takeEnd 2 word
+    last3 = T.takeEnd 3 word
+
 normalizeWord :: Text -> Text
-normalizeWord = singularize . depunctuate . decontraction . T.strip
+normalizeWord = singularize . depunctuate . deregionalize . decontraction . T.strip
 
 cleanLine :: Line -> [NGram]
 cleanLine = (singleton <$>) . filter (/= "") . (normalizeWord <$>) . T.words . T.toLower . lineText
